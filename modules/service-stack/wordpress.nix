@@ -3,6 +3,9 @@
 with lib;
 
 let
+
+  cfg = config.services.wpbox;
+
   # Load sites from JSON
   sitesJson = builtins.fromJSON (builtins.readFile ./sites.json);
   globalConfig = sitesJson.global;
@@ -19,79 +22,29 @@ let
     };
   }) sitesJson.sites);
 
+  activeSites = filterAttrs (n: v: v.enabled) cfg.wordpress.sites;
+
 in
 {
-  # ################################################
-  # ##                OPTIONS                     ##
-  # ################################################
-
-  options.services.wpbox.wordpress = {
-    
-    enable = mkEnableOption "WordPress with automatic resource tuning";
-
-    package = mkOption {
-      type = types.package;
-      default = pkgs.wordpress;
-      description = "The WordPress package to use.";
-    };
-
-    sitesFile = mkOption {
-      type = types.path;
-      default = ./sites.json;
-      description = "Path to sites.json configuration file.";
-    };
-
-    tuning = {
-      enableAuto = mkOption {
-        type = types.bool;
-        default = globalConfig.tuning.enable_auto;
-        description = "Enable auto-tuning based on System RAM and active sites count.";
-      };
-
-      osRamHeadroom = mkOption {
-        type = types.int;
-        default = globalConfig.tuning.os_ram_headroom_mb;
-        description = "RAM (in MB) reserved for OS + Nginx + MariaDB.";
-      };
-
-      avgProcessSize = mkOption {
-        type = types.int;
-        default = globalConfig.tuning.avg_process_size_mb;
-        description = "Estimated average RAM usage (in MB) per PHP-FPM worker.";
-      };
-    };
-
-    # Expose processed sites for other modules to consume
-    sites = mkOption {
-      type = types.attrsOf types.anything;
-      default = sitesFromJson;
-      description = "WordPress sites loaded from JSON (internal).";
-      internal = true;
-    };
-  };
+  
 
   # ################################################
   # ##             CONFIGURATION                  ##
   # ################################################
 
-  config = mkIf config.services.wpbox.wordpress.enable (
-    let 
-      cfg = config.services.wpbox.wordpress;
+  config.services.wpbox.wordpress.sites = sitesFromJson;
 
-      # Filter only enabled sites
-      activeSites = filterAttrs (n: v: v.enabled) cfg.sites;
+  config = mkIf cfg.enable {
 
-    in
-    {
-      # --- WORDPRESS CORE CONFIG ---
-      # IMPORTANT: Set webserver to "none" because nginx.nix manages it
-      services.wordpress.webserver = "none";
 
-      services.wordpress.sites = mapAttrs (name: siteOpts: {
-        
+    # --- WORDPRESS CORE CONFIG ---
+    # IMPORTANT: Set webserver to "none" because nginx.nix manages it
+    services.wordpress.webserver = "none";
+
+    services.wordpress.sites = mapAttrs (name: siteOpts: {
         package = mkDefault cfg.package;
-        
-        # --- DATABASE CONFIGURATION ---
+          
+          # --- DATABASE CONFIGURATION ---
         database = {
           createLocally = true;
           name = "wp_${replaceStrings ["."] ["_"] name}";
@@ -157,7 +110,5 @@ in
         enable = mkDefault true;
         package = mkDefault pkgs.mysql;
       };
-
     }
-  );
 }

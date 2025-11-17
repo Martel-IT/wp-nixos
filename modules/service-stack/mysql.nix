@@ -3,47 +3,17 @@
 with lib;
 
 let
+
   cfg = config.services.wpbox.mysql;
+  wpCfg = config.services.wpbox.wordpress;
+
 in
 {
-  ################################################
-  ##                OPTIONS                     ##
-  ################################################
-  options.services.wpbox.mysql = {
-    enable = mkEnableOption "Auto-tuned MySQL for WordPress";
-
-    package = mkOption {
-      type = types.package;
-      default = pkgs.mysql80;
-      description = "MySQL package to use.";
-    };
-
-    autoTune = {
-      enable = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Enable automatic tuning of MySQL based on system RAM/CPU.";
-      };
-
-      # Percentage of RAM *not* used by PHP-FPM to allocate to MySQL
-      ramAllocationRatio = mkOption {
-        type = types.float;
-        default = 0.30; # 30% of available RAM after PHP
-        description = "Percentage of (System RAM - PHP RAM) to dedicate to MySQL.";
-      };
-    };
-
-    dataDir = mkOption {
-      type = types.path;
-      default = "/var/lib/mysql";
-      description = "MySQL data directory.";
-    };
-  };
 
   ################################################
   ##                CONFIGURATION               ##
   ################################################
-  config = lib.mkIf cfg.enable (
+  config = mkIf (config.services.wpbox.enable && cfg.enable) {
     
     let
       # --- 1. GET SYSTEM & PHP-FPM FACTS ---
@@ -216,7 +186,7 @@ in
       # --- ACTIVATION INFO ---
       system.activationScripts.wpbox-mysql-info = lib.mkIf cfg.autoTune.enable ''
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "🗄️  WPBox MySQL Auto-Tuning"
+        echo " WPBox MySQL Auto-Tuning"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "   System RAM:         ${toString systemRamMb}MB"
         echo "   Reserved (OS):      ${toString reservedRamMb}MB"
@@ -234,5 +204,5 @@ in
         "d '${cfg.dataDir}' 0750 mysql mysql - -"
       ];
     }
-  );
+};
 }
