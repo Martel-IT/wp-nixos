@@ -2,17 +2,19 @@
 
 with lib;
 
+let
+  getDetectedRamMb = 
+    if config.hardware.runtimeMemoryMb != null 
+    then config.hardware.runtimeMemoryMb
+    else 4096;  # Fallback during build
+in
 {
-  # No options defined here (see interface.nix)
-
-  # Activate if WP is enabled OR if explicitly enabled via phpfpm toggle
-  config = mkIf (config.services.wpbox.wordpress.enable || config.services.wpbox.phpfpm.enable) {
-    
+  config = mkIf (config.services.wpbox.wordpress.enable || config.services.wpbox.phpfpm.enable) (
     let
       cfg = config.services.wpbox.wordpress;
       
       # --- HARDWARE & TUNING CALCULATIONS ---
-      detectedRamMb = config.hardware.memorySize or 4096; 
+      detectedRamMb = getDetectedRamMb;
       
       autoTune = cfg.tuning.enableAuto;
       reservedRamMb = cfg.tuning.osRamHeadroom;
@@ -32,11 +34,11 @@ with lib;
       # Dynamic Pool Configuration
       dynamicPoolConfig = {
         pm = "dynamic";
-        "pm.max_children" = finalChildrenPerSite;
-        "pm.start_servers" = max 1 (floor (finalChildrenPerSite * 0.25));
-        "pm.min_spare_servers" = max 1 (floor (finalChildrenPerSite * 0.25));
-        "pm.max_spare_servers" = max 2 (floor (finalChildrenPerSite * 0.50));
-        "pm.max_requests" = 1000;
+        "pm.max_children" = toString finalChildrenPerSite;
+        "pm.start_servers" = toString (max 1 (floor (finalChildrenPerSite * 0.25)));
+        "pm.min_spare_servers" = toString (max 1 (floor (finalChildrenPerSite * 0.25)));
+        "pm.max_spare_servers" = toString (max 2 (floor (finalChildrenPerSite * 0.50)));
+        "pm.max_requests" = "1000";
       };
     in
     {
@@ -46,7 +48,7 @@ with lib;
           totalExpectedFootprint = (finalChildrenPerSite * avgProcessMb * safeSiteCount) + reservedRamMb;
         in
         optional (detectedRamMb > 0 && totalExpectedFootprint > detectedRamMb)
-          "⚠️  WPBox PHP-FPM: Expected footprint (${toString totalExpectedFootprint}MB) exceeds detected RAM (${toString detectedRamMb}MB). Risk of OOM!";
+          "WPBox PHP-FPM: Expected footprint (${toString totalExpectedFootprint}MB) exceeds detected RAM (${toString detectedRamMb}MB). Risk of OOM!";
 
       # --- PHP-FPM POOLS ---
       services.phpfpm.pools = mapAttrs' (name: siteOpts: 
@@ -94,12 +96,19 @@ with lib;
       ];
 
       # --- ACTIVATION INFO ---
-      system.activationScripts.wpbox-phpfpm-info = ''
+      system.activationScripts.wpbox-phpfpm-info = lib.mkAfter ''
+        # Rileggi i valori reali dal file cache
+        if [ -f /run/wpbox/detected-ram-mb ]; then
+          ACTUAL_RAM=$(cat /run/wpbox/detected-ram-mb)
+        else
+          ACTUAL_RAM=${toString detectedRamMb}
+        fi
+        
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "⚙️  WPBox PHP-FPM Auto-Tuning"
+        echo "   WPBox PHP-FPM Auto-Tuning"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "   RAM Detected:    ${toString detectedRamMb}MB"
-        echo "   RAM Reserved:    ${toString reservedRamMb}MB (OS/Nginx/mariadb)"
+        echo "   RAM Detected:    ''${ACTUAL_RAM}MB"
+        echo "   RAM Reserved:    ${toString reservedRamMb}MB (OS/Nginx/MariaDB)"
         echo "   RAM Available:   ${toString availablePhpRamMb}MB (for PHP)"
         echo "   Active Sites:    ${toString numberOfSites}"
         echo "   Workers/Site:    ${toString finalChildrenPerSite}"
@@ -107,5 +116,5 @@ with lib;
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       '';
     }
-};
+  );
 }

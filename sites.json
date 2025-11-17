@@ -1,0 +1,26 @@
+{
+  "sites": [
+    {
+      "domain": "example.com",
+      "enabled": true,
+      "ssl": {
+        "enabled": true,
+        "forceSSL": true
+      },
+      "php": {
+        "memory_limit": "256M",
+        "max_execution_time": 300,
+        "custom_pool": null
+      },
+      "nginx": {
+        "client_max_body_size": "64M",
+        "custom_locations": {}
+      },
+      "wordpress": {
+        "debug": false,
+        "auto_update": false,
+        "extra_config": ""
+      }
+    }
+  ]
+}

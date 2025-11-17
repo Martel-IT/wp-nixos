@@ -5,17 +5,31 @@ with lib;
 let
   cfg = config.services.wpbox.mariadb;
   wpCfg = config.services.wpbox.wordpress;
+  
+  getDetectedRamMb = 
+    let
+      ramFile = "/run/wpbox/detected-ram-mb";
+      fallbackRam = 4096;
+    in
+    if config.hardware.runtimeMemoryMb != null 
+    then config.hardware.runtimeMemoryMb
+    else fallbackRam;
+    
+  getDetectedCores =
+    let
+      coresFile = "/run/wpbox/detected-cores";
+      fallbackCores = 2;
+    in
+    if config.hardware.runtimeCores != null
+    then config.hardware.runtimeCores
+    else fallbackCores;
 in
 {
-  # No options defined here (see interface.nix)
-
-  config = mkIf (config.services.wpbox.enable && cfg.enable) {
-    
+  config = mkIf (config.services.wpbox.enable && cfg.enable) (
     let
       # --- 1. GET SYSTEM & PHP-FPM FACTS ---
-      
-      systemRamMb = config.hardware.memorySize or 4096;
-      cpus = config.nix.settings.cores or 2;
+      systemRamMb = getDetectedRamMb;
+      cpus = getDetectedCores;
       
       wpEnabled = config.services.wpbox.wordpress.enable or false;
       
@@ -41,7 +55,6 @@ in
       phpFpmRamMb = calculatedChildrenPerSite * avgProcessMb * safeSiteCount;
 
       # --- 2. CALCULATE DB BUDGET ---
-      
       availableRamMb = lib.max 512 (systemRamMb - phpFpmRamMb - reservedRamMb);
       
       # Final budget for MariaDB
@@ -52,8 +65,7 @@ in
       # InnoDB Buffer Pool: 70% of DB budget (max 16GB for small servers)
       innodbBufferPoolSizeMb = lib.min 16384 (builtins.floor(dbBudgetMb * 0.70));
       
-      # Query Cache (MariaDB still supports it well, unlike MySQL 8)
-      # We allocate a small amount if budget permits
+      # Query Cache
       queryCacheSizeMb = lib.min 128 (builtins.floor(dbBudgetMb * 0.05));
       
       # Tmp Table Size
@@ -87,9 +99,9 @@ in
         max_allowed_packet = "256M";
         slow_query_log = "1";
         long_query_time = "2";
-        "skip-log-bin" = true; # Disable binlog for perf unless replication needed
+        "skip-log-bin" = true;
         innodb_file_per_table = "1";
-        innodb_flush_log_at_trx_commit = "2"; # 2 is faster, 1 is safer
+        innodb_flush_log_at_trx_commit = "2";
         innodb_flush_method = "O_DIRECT";
         table_definition_cache = "4096";
       };
@@ -100,7 +112,7 @@ in
         innodb_buffer_pool_instances = toString innodbBufferPoolInstances;
         innodb_log_file_size = "${toString innodbLogFileSizeMb}M";
         
-        query_cache_type = "1"; # Enable for MariaDB
+        query_cache_type = "1";
         query_cache_limit = "2M";
         query_cache_size = "${toString queryCacheSizeMb}M";
         
@@ -126,7 +138,6 @@ in
           "WPBox MariaDB: Total allocated RAM (${toString totalAllocatedMb}MB) exceeds system RAM (${toString systemRamMb}MB). Risk of OOM!";
 
       # --- ENABLE MARIADB SERVICE ---
-      # Note: NixOS uses 'services.mysql' even for MariaDB package
       services.mysql = {
         enable = true;
         package = cfg.package;
@@ -142,11 +153,21 @@ in
       };
 
       # --- ACTIVATION INFO ---
-      system.activationScripts.wpbox-mariadb-info = lib.mkIf cfg.autoTune.enable ''
+      system.activationScripts.wpbox-mariadb-info = lib.mkAfter (lib.mkIf cfg.autoTune.enable ''
+        # Rileggi i valori reali dal file cache
+        if [ -f /run/wpbox/detected-ram-mb ]; then
+          ACTUAL_RAM=$(cat /run/wpbox/detected-ram-mb)
+          ACTUAL_CORES=$(cat /run/wpbox/detected-cores)
+        else
+          ACTUAL_RAM=${toString systemRamMb}
+          ACTUAL_CORES=${toString cpus}
+        fi
+        
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "🗄️  WPBox MariaDB Auto-Tuning"
+        echo "   WPBox MariaDB Auto-Tuning"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "   System RAM:         ${toString systemRamMb}MB"
+        echo "   System RAM:         ''${ACTUAL_RAM}MB (detected)"
+        echo "   CPU Cores:          ''${ACTUAL_CORES} (detected)"
         echo "   Reserved (OS):      ${toString reservedRamMb}MB"
         echo "   PHP-FPM RAM:        ${toString phpFpmRamMb}MB"
         echo "   DB Budget:          ${toString dbBudgetMb}MB"
@@ -155,12 +176,13 @@ in
         echo "   Max Connections:    ${toString maxConnections}"
         echo "   Auto-Tuning:        ${if cfg.autoTune.enable then "✓ ENABLED" else "✗ DISABLED"}"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      '';
+      '');
 
       # --- SYSTEMD TMPFILES ---
       systemd.tmpfiles.rules = [
         "d '${cfg.dataDir}' 0750 mysql mysql - -"
+        "d /run/wpbox 0755 root root - -"
       ];
-    };
-};
+    }
+  );
 }
