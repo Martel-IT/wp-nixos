@@ -3,20 +3,17 @@
 with lib;
 
 {
+  # No options defined here (see interface.nix)
 
-  options.services.wpbox.phpfpm = {
-     enable = mkEnableOption "WpBox PHP-FPM Manager";
-  };
-  
-  config = mkIf config.services.wpbox.wordpress.enable (
+  # Activate if WP is enabled OR if explicitly enabled via phpfpm toggle
+  config = mkIf (config.services.wpbox.wordpress.enable || config.services.wpbox.phpfpm.enable) {
+    
     let
       cfg = config.services.wpbox.wordpress;
-
-      # --- HARDWARE & TUNING CALCULATIONS ---
       
+      # --- HARDWARE & TUNING CALCULATIONS ---
       detectedRamMb = config.hardware.memorySize or 4096; 
-      detectedCores = config.nix.settings.cores or 2;
-
+      
       autoTune = cfg.tuning.enableAuto;
       reservedRamMb = cfg.tuning.osRamHeadroom;
       avgProcessMb = cfg.tuning.avgProcessSize;
@@ -41,7 +38,6 @@ with lib;
         "pm.max_spare_servers" = max 2 (floor (finalChildrenPerSite * 0.50));
         "pm.max_requests" = 1000;
       };
-
     in
     {
       # --- SAFETY CHECKS ---
@@ -85,7 +81,7 @@ with lib;
                        "listen.owner" = "nginx";
                        "listen.group" = "nginx";
                      };
-          
+
           phpEnv = {
             PATH = lib.makeBinPath [ pkgs.php ];
           };
@@ -103,7 +99,7 @@ with lib;
         echo "⚙️  WPBox PHP-FPM Auto-Tuning"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "   RAM Detected:    ${toString detectedRamMb}MB"
-        echo "   RAM Reserved:    ${toString reservedRamMb}MB (OS/Nginx/MySQL)"
+        echo "   RAM Reserved:    ${toString reservedRamMb}MB (OS/Nginx/mariadb)"
         echo "   RAM Available:   ${toString availablePhpRamMb}MB (for PHP)"
         echo "   Active Sites:    ${toString numberOfSites}"
         echo "   Workers/Site:    ${toString finalChildrenPerSite}"
@@ -111,5 +107,5 @@ with lib;
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       '';
     }
-  );
+};
 }

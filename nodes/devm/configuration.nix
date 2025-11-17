@@ -78,13 +78,14 @@
   # Enable WPBox WordPress
   services.wpbox.wordpress = {
     enable = true;
-    # sitesFile points to sites.json (default: ./sites.json)
     sitesFile = ./sites.json;
+
   };
 
-  # Enable auto-tuned MySQL
-  services.wpbox.mysql = {
+  # Enable auto-tuned mariadb
+  services.wpbox.mariadb = {
     enable = true;
+    package = pkgs.mariadb;
     autoTune.enable = true;
   };
 
@@ -94,7 +95,7 @@
     level = "strict";
     applyToPhpFpm = true;
     applyToNginx = true;
-    applyToMysql = true;
+    applyToMariadb = true;
   };
 
   services.wpbox.nginx.enable = true;

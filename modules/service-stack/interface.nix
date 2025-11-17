@@ -7,7 +7,7 @@ with types;
   options.services.wpbox = {
     
     # --- GLOBAL ---
-    enable = mkEnableOption "WPBox Stack (WP + MySQL + Nginx + PHP-FPM)";
+    enable = mkEnableOption "WPBox Stack (WP + mariadb + Nginx + PHP-FPM)";
 
     sitesFile = mkOption {
       type = path;
@@ -23,7 +23,7 @@ with types;
         description = "The WordPress package to use.";
       };
       
-      # Internal option to hold parsed sites, populated by implementation
+      # Internal option to hold parsed sites
       sites = mkOption {
         type = attrsOf anything;
         default = {}; 
@@ -40,7 +40,7 @@ with types;
         osRamHeadroom = mkOption {
           type = int;
           default = 2048;
-          description = "RAM (MB) reserved for OS/Nginx/MySQL.";
+          description = "RAM (MB) reserved for OS/Nginx/mariadb.";
         };
         avgProcessSize = mkOption {
           type = int;
@@ -50,51 +50,74 @@ with types;
       };
     };
 
-    # --- MYSQL ---
-    mysql = {
-      enable = mkEnableOption "Managed MySQL 8.0";
+    # --- mariadb ---
+    mariadb = {
+      enable = mkEnableOption "Managed mariadb 8.0";
       
       package = mkOption {
         type = package;
-        default = pkgs.mysql80;
-        description = "MySQL package to use.";
+        default = pkgs.mariadb80;
+        description = "mariadb package to use.";
       };
 
       autoTune = {
         enable = mkOption {
           type = bool;
           default = true;
-          description = "Enable MySQL auto-tuning logic.";
+          description = "Enable mariadb auto-tuning logic.";
         };
         ramAllocationRatio = mkOption {
           type = float;
           default = 0.30;
-          description = "Ratio of free RAM to allocate to MySQL (0.30 = 30%).";
+          description = "Ratio of free RAM to allocate to mariadb (0.30 = 30%).";
         };
       };
       
       dataDir = mkOption {
         type = path;
-        default = "/var/lib/mysql";
-        description = "Data directory for MySQL.";
+        default = "/var/lib/mariadb";
+        description = "Data directory for mariadb.";
       };
     };
 
     # --- NGINX ---
     nginx = {
       enable = mkEnableOption "Managed Nginx Proxy";
-      # Qui potrai aggiungere opzioni future tipo 'enableModSecurity' etc.
+      # Add extra Nginx-specific options here if needed
+    };
+
+    # --- PHP-FPM ---
+    phpfpm = {
+      enable = mkEnableOption "Managed PHP-FPM Pools";
     };
 
     # --- SECURITY ---
     security = {
-      hardeningLevel = mkOption {
+      enableHardening = mkEnableOption "Systemd security hardening features";
+      
+      level = mkOption {
         type = enum [ "basic" "strict" "paranoid" ];
         default = "strict";
-        description = "Systemd hardening level for services.";
+        description = "Hardening level intensity.";
       };
-      
-      enableSystemdHardening = mkEnableOption "Enable Systemd hardening features";
+
+      applyToPhpFpm = mkOption {
+        type = bool;
+        default = true;
+        description = "Apply hardening to PHP-FPM pools.";
+      };
+
+      applyToNginx = mkOption {
+        type = bool;
+        default = true;
+        description = "Apply hardening to Nginx service.";
+      };
+
+      applyTomariadb = mkOption {
+        type = bool;
+        default = true;
+        description = "Apply hardening to mariadb service.";
+      };
     };
   };
 }
