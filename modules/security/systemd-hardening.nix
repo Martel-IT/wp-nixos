@@ -1,6 +1,22 @@
-{ config, lib, ... }:
+{ config, pkgs, lib, ... }:
 
 with lib;
+
+let
+  cfg = config.services.wpbox.security;
+  wpCfg = config.services.wpbox.wordpress;
+in
+{
+
+  options.services.wpbox.security = {
+    enableHardening = mkEnableOption "Systemd security hardening for WP pools";
+    level = mkOption {
+      type = types.enum [ "basic" "strict" "paranoid" ];
+      default = "strict";
+      description = "Hardening level intensity";
+    };
+  };
+};
 
 {
 

@@ -3,6 +3,11 @@
 with lib;
 
 {
+
+  options.services.wpbox.phpfpm = {
+     enable = mkEnableOption "WpBox PHP-FPM Manager";
+  };
+  
   config = mkIf config.services.wpbox.wordpress.enable (
     let
       cfg = config.services.wpbox.wordpress;

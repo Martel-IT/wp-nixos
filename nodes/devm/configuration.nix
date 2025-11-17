@@ -8,7 +8,7 @@
   # ##              SYSTEM INFO                   ##
   # ################################################
 
-  networking.hostName = "odoo-instance";
+  networking.hostName = "wpbox-dev";
   time.timeZone = "Europe/Amsterdam";
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
@@ -64,11 +64,11 @@
   nix.settings.allowed-users = [ "@wheel" ];
 
   # SSH
-  sservices.openssh.enable = true;
+  services.openssh.enable = true;
   services.openssh.settings.PermitRootLogin = "yes";
 
   networking.firewall.enable = true;
-  networking.firewall.allowedTCPPorts = [ 22 8069 ];
+  networking.firewall.allowedTCPPorts = [ 22 80 443 ];
 
 
   # ################################################
@@ -85,20 +85,19 @@
   # Enable auto-tuned MySQL
   services.wpbox.mysql = {
     enable = true;
-    package = pkgs.mysql80;  # Use MySQL 8.0
     autoTune.enable = true;
   };
 
   # Enable systemd hardening
-  services.wpbox.hardening = {
-    enable = true;
-    level = "strict";  # basic | strict | paranoid
+  services.wpbox.security = {
+    enableHardening = true;
+    level = "strict";
     applyToPhpFpm = true;
     applyToNginx = true;
     applyToMysql = true;
   };
 
-
+  services.wpbox.nginx.enable = true;
 
   # ACME / Let's Encrypt (⚠️ CHANGE THE EMAIL!)
   security.acme = {

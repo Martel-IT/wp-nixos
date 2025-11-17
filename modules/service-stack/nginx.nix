@@ -2,8 +2,19 @@
 
 with lib;
 
+let
+  cfg = config.services.wpbox.nginx;
+  wpCfg = config.services.wpbox.wordpress;
+in
+
 {
-  config = mkIf config.services.wpbox.wordpress.enable {
+
+  options.services.wpbox.nginx = {
+    enable = mkEnableOption "Nginx web server for WordPress sites";
+    # Qui puoi aggiungere opzioni specifiche per il wrapper se vuoi
+  };
+
+  config = mkIf (cfg.enable || wpCfg.enable) {
     
     # --- GLOBAL NGINX CONFIGURATION ---
     services.nginx = {
