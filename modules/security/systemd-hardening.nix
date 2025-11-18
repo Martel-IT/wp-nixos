@@ -6,7 +6,6 @@ let
   cfg = config.services.wpbox.security;
   wpCfg = config.services.wpbox.wordpress;
 
-  
   commonHardening = {
     ProtectSystem = "strict";
     ProtectHome = true;
@@ -49,6 +48,7 @@ let
       "/var/log/nginx"
       "/var/cache/nginx"
       "/var/spool/nginx"
+      "/run/phpfpm" # FIX: Permette a Nginx di accedere ai socket PHP
     ];
   };
 
@@ -73,7 +73,6 @@ in
   config = mkIf cfg.enableHardening {
 
     systemd.services.tailscaled = mkIf cfg.applyToTailscale tailscaleHardening;
-
     systemd.services.tailscale-autoconnect = mkIf cfg.applyToTailscale (
       tailscaleHardening // {
         User = "root";
@@ -89,6 +88,7 @@ in
                "/var/lib/wordpress/${hostName}" 
                "/run/phpfpm"
                "/run/mysqld"
+               "/tmp" # FIX: Necessario per sessioni e upload temporanei PHP
              ];
              BindReadOnlyPaths = [ 
                "/nix/store" 

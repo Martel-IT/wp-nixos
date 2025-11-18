@@ -89,8 +89,12 @@ in
         # Logging for debug cache
         add_header X-Cache-Status $upstream_cache_status;
         
-        # Rate limiting maps and zones (coperti da modulo base)
-        # ...
+        limit_req_zone $binary_remote_addr zone=wp_general:10m rate=20r/s;
+        limit_req_zone $binary_remote_addr zone=wp_bots:10m rate=5r/s;
+        limit_req_zone $binary_remote_addr zone=wp_admin:10m rate=5r/m; # Nota: rate basso per admin
+        limit_req_zone $binary_remote_addr zone=wp_api:10m rate=30r/s;
+        limit_req_zone $binary_remote_addr zone=wp_login:10m rate=5r/m;
+        limit_req_zone $binary_remote_addr zone=wp_static:10m rate=100r/s;
       '';
       
       appendHttpConfig = ''
