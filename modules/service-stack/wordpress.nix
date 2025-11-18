@@ -115,6 +115,14 @@ in
         assertion = (wpCfg.sitesFile == null) -> (wpCfg.sites != {});
         message = "Either services.wpbox.wordpress.sitesFile or services.wpbox.wordpress.sites must be configured";
       }
+      {
+        assertion = all (site: site ? domain && site ? enabled) (attrValues sitesFromConfig);
+        message = "All sites in configuration must have 'domain' and 'enabled' fields";
+      }
+      {
+        assertion = all (site: site ? php && site.php ? memory_limit) (attrValues sitesFromConfig);
+        message = "All sites must have php.memory_limit configured";
+      }
     ];
 
     # WordPress service configuration

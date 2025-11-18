@@ -7,7 +7,7 @@ with types;
   options.services.wpbox = {
     
     # --- GLOBAL ---
-    enable = mkEnableOption "WPBox Stack (WP + mariadb + Nginx + PHP-FPM)";
+    enable = mkEnableOption "WPBox Stack (WP + MariaDB + Nginx + PHP-FPM)";
 
     sitesFile = mkOption {
       type = path;
@@ -17,6 +17,8 @@ with types;
 
     # --- WORDPRESS ---
     wordpress = {
+      enable = mkEnableOption "WordPress hosting with auto-configuration";
+      
       package = mkOption {
         type = package;
         default = pkgs.wordpress;
@@ -31,6 +33,27 @@ with types;
         description = "Parsed sites configuration (internal).";
       };
 
+      # AGGIUNTO: defaults mancanti
+      defaults = {
+        phpMemoryLimit = mkOption {
+          type = str;
+          default = "256M";
+          description = "Default PHP memory limit";
+        };
+        
+        maxExecutionTime = mkOption {
+          type = int;
+          default = 300;
+          description = "Default PHP max execution time";
+        };
+        
+        uploadMaxSize = mkOption {
+          type = str;
+          default = "64M";
+          description = "Default max upload size";
+        };
+      };
+
       tuning = {
         enableAuto = mkOption {
           type = bool;
@@ -40,7 +63,7 @@ with types;
         osRamHeadroom = mkOption {
           type = int;
           default = 2048;
-          description = "RAM (MB) reserved for OS/Nginx/mariadb.";
+          description = "RAM (MB) reserved for OS/Nginx/MariaDB.";
         };
         avgProcessSize = mkOption {
           type = int;
@@ -52,31 +75,31 @@ with types;
 
     # --- MARIADB ---
     mariadb = {
-      enable = mkEnableOption "Managed mariadb 8.0";
+      enable = mkEnableOption "Managed MariaDB 8.0";
       
       package = mkOption {
         type = package;
         default = pkgs.mariadb;
-        description = "mariadb package to use.";
+        description = "MariaDB package to use.";
       };
 
       autoTune = {
         enable = mkOption {
           type = bool;
           default = true;
-          description = "Enable mariadb auto-tuning logic.";
+          description = "Enable MariaDB auto-tuning logic.";
         };
         ramAllocationRatio = mkOption {
           type = float;
           default = 0.30;
-          description = "Ratio of free RAM to allocate to mariadb (0.30 = 30%).";
+          description = "Ratio of free RAM to allocate to MariaDB (0.30 = 30%).";
         };
       };
       
       dataDir = mkOption {
         type = path;
-        default = "/var/lib/mariadb";
-        description = "Data directory for mariadb.";
+        default = "/var/lib/mysql";
+        description = "Data directory for MariaDB.";
       };
     };
 
