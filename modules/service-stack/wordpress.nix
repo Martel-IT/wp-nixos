@@ -4,82 +4,263 @@ with lib;
 
 let
   cfg = config.services.wpbox;
+  wpCfg = config.services.wpbox.wordpress;
 
-  # Usa il path custom passato o errore esplicativo
-  sitesFilePath =
-    if cfg.sitesFile != null && builtins.pathExists cfg.sitesFile 
-    then cfg.sitesFile
-    else throw "Error: services.wpbox.sitesFile non esiste o non è configurato correttamente";
+  # Parse sites from JSON file
+  parseSitesFromFile = filePath:
+    if filePath != null && builtins.pathExists filePath then
+      let
+        jsonContent = builtins.fromJSON (builtins.readFile filePath);
+      in
+        listToAttrs (map (site: {
+          name = site.domain;
+          value = site // {
+            # Add default SSL config if missing
+            ssl = site.ssl or {
+              forceSSL = cfg.nginx.enableSSL;
+              enabled = cfg.nginx.enableSSL;
+            };
+          };
+        }) jsonContent.sites)
+    else
+      {};
 
-  sitesJson = builtins.fromJSON (builtins.readFile sitesFilePath);
-  sitesFromJson = listToAttrs (map (site: {
-    name = site.domain;
-    value = site;
-  }) sitesJson.sites);
+  # Get sites either from file or from direct config
+  sitesFromConfig = 
+    if wpCfg.sitesFile != null then
+      parseSitesFromFile wpCfg.sitesFile
+    else
+      wpCfg.sites;
 
-  activeSites = filterAttrs (n: v: v.enabled) sitesFromJson;
+  # Filter only enabled sites
+  activeSites = filterAttrs (n: v: v.enabled) sitesFromConfig;
+
+  # Helper to sanitize domain names for database names
+  sanitizeName = name: replaceStrings ["." "-"] ["_" "_"] name;
 in
 {
-  config = mkIf cfg.enable {
+  options.services.wpbox.wordpress = {
+    enable = mkEnableOption "WordPress hosting with auto-configuration";
+    
+    package = mkOption {
+      type = types.package;
+      default = pkgs.wordpress;
+      description = "The WordPress package to use";
+    };
+    
+    sitesFile = mkOption {
+      type = types.nullOr types.path;
+      default = null;
+      description = "Path to sites.json configuration file";
+    };
+    
+    sites = mkOption {
+      type = types.attrsOf types.anything;
+      default = {};
+      description = "Sites configuration (can be set directly or loaded from sitesFile)";
+    };
 
-    # Propaga l’attributo custom che potresti voler usare in altri moduli
-    services.wpbox.wordpress.sites = sitesFromJson;
-
-    services.wordpress.webserver = "none";
-
-    services.wordpress.sites = mapAttrs (name: siteOpts: {
-      package = mkDefault cfg.wordpress.package;
-
-      database = {
-        createLocally = true;
-        name = "wp_${replaceStrings ["."] ["_"] name}";
-        user = "wp_${replaceStrings ["."] ["_"] name}";
-        # socket auth locale
+    tuning = {
+      enableAuto = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Enable auto-tuning based on System RAM";
       };
-
-      poolConfig = {
-        "listen.owner" = "nginx";
-        "listen.group" = "nginx";
+      
+      osRamHeadroom = mkOption {
+        type = types.int;
+        default = 2048;
+        description = "RAM (MB) reserved for OS/Nginx/MariaDB";
       };
+      
+      avgProcessSize = mkOption {
+        type = types.int;
+        default = 70;
+        description = "Estimated RAM (MB) per PHP worker";
+      };
+    };
 
-      extraConfig = ''
-        /* --- WPBOX HYBRID CONFIG --- */
-        define( 'WP_CONTENT_DIR', '/var/lib/wordpress/${name}/wp-content' );
-        define( 'WP_CONTENT_URL', 'https://${name}/wp-content' );
-        define( 'WP_PLUGIN_DIR', '/var/lib/wordpress/${name}/wp-content/plugins' );
-        define( 'WP_PLUGIN_URL', 'https://${name}/wp-content/plugins' );
-        define( 'FS_METHOD', 'direct' );
+    defaults = {
+      phpMemoryLimit = mkOption {
+        type = types.str;
+        default = "256M";
+        description = "Default PHP memory limit";
+      };
+      
+      maxExecutionTime = mkOption {
+        type = types.int;
+        default = 300;
+        description = "Default PHP max execution time";
+      };
+      
+      uploadMaxSize = mkOption {
+        type = types.str;
+        default = "64M";
+        description = "Default max upload size";
+      };
+    };
+  };
 
-        define( 'WP_MEMORY_LIMIT', '${siteOpts.php.memory_limit}' );
-        define( 'WP_MAX_MEMORY_LIMIT', '512M' );
-        define( 'DISALLOW_FILE_EDIT', true );
-        define( 'FORCE_SSL_ADMIN', ${if siteOpts.ssl.forceSSL then "true" else "false"} );
-        define( 'WP_DEBUG', ${if siteOpts.wordpress.debug then "true" else "false"} );
-        ${optionalString siteOpts.wordpress.debug ''
-          define( 'WP_DEBUG_LOG', true );
-          define( 'WP_DEBUG_DISPLAY', false );
-        ''}
-        define( 'AUTOMATIC_UPDATER_DISABLED', ${if siteOpts.wordpress.auto_update then "false" else "true"} );
-        ${siteOpts.wordpress.extra_config}
-      '';
-    }) activeSites;
+  config = mkIf (cfg.enable && wpCfg.enable) {
+    # Set parsed sites to the sites option for use by other modules
+    services.wpbox.wordpress.sites = mkDefault sitesFromConfig;
 
-    # MUTABLE DIRECTORIES/GESTIONE OWNER/GROUP
-    systemd.tmpfiles.rules = flatten (
-      mapAttrsToList (name: _: [
-        "d '/var/lib/wordpress/${name}' 0755 wordpress nginx - -"
-        "d '/var/lib/wordpress/${name}/wp-content' 0755 wordpress nginx - -"
-        "d '/var/lib/wordpress/${name}/wp-content/plugins' 0755 wordpress nginx - -"
-        "d '/var/lib/wordpress/${name}/wp-content/themes' 0755 wordpress nginx - -"
-        "d '/var/lib/wordpress/${name}/wp-content/uploads' 0755 wordpress nginx - -"
-        "d '/var/lib/wordpress/${name}/wp-content/upgrade' 0755 wordpress nginx - -"
-      ]) activeSites
-    );
+    # Assertions for configuration validation
+    assertions = [
+      {
+        assertion = wpCfg.sitesFile != null -> builtins.pathExists wpCfg.sitesFile;
+        message = "services.wpbox.wordpress.sitesFile must point to an existing file";
+      }
+      {
+        assertion = (wpCfg.sitesFile == null) -> (wpCfg.sites != {});
+        message = "Either services.wpbox.wordpress.sitesFile or services.wpbox.wordpress.sites must be configured";
+      }
+    ];
 
-    # MARIADB AUTO-ENABLE fallback se nessun altro modulo la abilita
+    # WordPress service configuration
+    services.wordpress = {
+      webserver = "none"; # We use our own Nginx config
+      
+      sites = mapAttrs (name: siteOpts: {
+        package = mkDefault wpCfg.package;
+        
+        database = {
+          createLocally = true;
+          name = "wp_${sanitizeName name}";
+          user = "wp_${sanitizeName name}";
+          passwordFile = mkDefault null; # Uses socket auth
+          host = "localhost";
+        };
+
+        poolConfig = {
+          "listen.owner" = "nginx";
+          "listen.group" = "nginx";
+        };
+
+        extraConfig = ''
+          /* === WPBox Managed WordPress Configuration === */
+          
+          /* Content Directories */
+          define( 'WP_CONTENT_DIR', '/var/lib/wordpress/${name}/wp-content' );
+          define( 'WP_CONTENT_URL', 'https://${name}/wp-content' );
+          define( 'WP_PLUGIN_DIR', '/var/lib/wordpress/${name}/wp-content/plugins' );
+          define( 'WP_PLUGIN_URL', 'https://${name}/wp-content/plugins' );
+          define( 'UPLOADS', 'wp-content/uploads' );
+          
+          /* File System */
+          define( 'FS_METHOD', 'direct' );
+          define( 'FS_CHMOD_DIR', 0755 );
+          define( 'FS_CHMOD_FILE', 0644 );
+          
+          /* Memory Limits */
+          define( 'WP_MEMORY_LIMIT', '${siteOpts.php.memory_limit or wpCfg.defaults.phpMemoryLimit}' );
+          define( 'WP_MAX_MEMORY_LIMIT', '512M' );
+          
+          /* Security */
+          define( 'DISALLOW_FILE_EDIT', true );
+          define( 'DISALLOW_FILE_MODS', false );
+          define( 'FORCE_SSL_ADMIN', ${if (siteOpts.ssl.forceSSL or cfg.nginx.enableSSL) then "true" else "false"} );
+          define( 'COOKIE_SECURE', ${if cfg.nginx.enableSSL then "true" else "false"} );
+          
+          /* Performance */
+          define( 'WP_CACHE', true );
+          define( 'COMPRESS_CSS', true );
+          define( 'COMPRESS_SCRIPTS', true );
+          define( 'CONCATENATE_SCRIPTS', false );
+          define( 'EMPTY_TRASH_DAYS', 30 );
+          
+          /* Debug Settings */
+          define( 'WP_DEBUG', ${if (siteOpts.wordpress.debug or false) then "true" else "false"} );
+          ${optionalString (siteOpts.wordpress.debug or false) ''
+            define( 'WP_DEBUG_LOG', true );
+            define( 'WP_DEBUG_DISPLAY', false );
+            define( 'SCRIPT_DEBUG', true );
+            define( 'SAVEQUERIES', true );
+            @ini_set( 'log_errors', 'On' );
+            @ini_set( 'display_errors', 'Off' );
+            @ini_set( 'error_log', '/var/lib/wordpress/${name}/wp-content/debug.log' );
+          ''}
+          
+          /* Updates */
+          define( 'AUTOMATIC_UPDATER_DISABLED', ${if (siteOpts.wordpress.auto_update or false) then "false" else "true"} );
+          define( 'WP_AUTO_UPDATE_CORE', ${if (siteOpts.wordpress.auto_update or false) then "'minor'" else "false"} );
+          
+          /* Misc */
+          define( 'WP_POST_REVISIONS', 10 );
+          define( 'AUTOSAVE_INTERVAL', 60 );
+          define( 'WP_CRON_LOCK_TIMEOUT', 60 );
+          
+          /* Custom Configuration */
+          ${siteOpts.wordpress.extra_config or ""}
+        '';
+      }) activeSites;
+    };
+
+    # System users and groups
+    users.users.wordpress = {
+      isSystemUser = true;
+      group = "wordpress";
+      home = "/var/lib/wordpress";
+      createHome = false;
+    };
+
+    users.groups.wordpress = {
+      members = [ "wordpress" "nginx" ];
+    };
+
+    # Directory structure and permissions
+    systemd.tmpfiles.rules = 
+      [ "d /var/lib/wordpress 0755 wordpress wordpress - -" ] ++
+      flatten (mapAttrsToList (name: _: [
+        "d '/var/lib/wordpress/${name}' 0750 wordpress nginx - -"
+        "d '/var/lib/wordpress/${name}/wp-content' 0750 wordpress nginx - -"
+        "d '/var/lib/wordpress/${name}/wp-content/plugins' 0750 wordpress nginx - -"
+        "d '/var/lib/wordpress/${name}/wp-content/themes' 0750 wordpress nginx - -"
+        "d '/var/lib/wordpress/${name}/wp-content/uploads' 0770 wordpress nginx - -"
+        "d '/var/lib/wordpress/${name}/wp-content/upgrade' 0770 wordpress nginx - -"
+        "d '/var/lib/wordpress/${name}/wp-content/cache' 0770 wordpress nginx - -"
+        "d '/var/lib/wordpress/${name}/wp-content/w3tc-config' 0770 wordpress nginx - -"
+        "f '/var/lib/wordpress/${name}/wp-content/debug.log' 0660 wordpress nginx - -"
+      ]) activeSites);
+
+    # WordPress cron jobs (real cron instead of wp-cron.php)
+    systemd.services = mapAttrs' (name: siteOpts:
+      nameValuePair "wordpress-cron-${name}" {
+        description = "WordPress Cron for ${name}";
+        after = [ "network.target" "mysql.service" ];
+        serviceConfig = {
+          Type = "oneshot";
+          User = "wordpress";
+          Group = "wordpress";
+          ExecStart = "${pkgs.curl}/bin/curl -s -o /dev/null https://${name}/wp-cron.php?doing_wp_cron";
+        };
+      }
+    ) activeSites;
+
+    # Cron timers
+    systemd.timers = mapAttrs' (name: _:
+      nameValuePair "wordpress-cron-${name}" {
+        description = "WordPress Cron Timer for ${name}";
+        wantedBy = [ "timers.target" ];
+        timerConfig = {
+          OnBootSec = "5min";
+          OnUnitActiveSec = "5min";
+          Persistent = true;
+        };
+      }
+    ) activeSites;
+
+    # Enable required services
     services.wpbox.mariadb = {
       enable = mkDefault true;
-      package = mkDefault pkgs.mariadb;
+    };
+
+    services.wpbox.nginx = {
+      enable = mkDefault true;
+    };
+
+    services.wpbox.phpfpm = {
+      enable = mkDefault true;
     };
   };
 }
