@@ -75,35 +75,52 @@
   # ##           WPBOX CONFIGURATION              ##
   # ################################################
 
-  # Enable WPBox WordPress
-  services.wpbox.wordpress = {
+services.wpbox = {
+  enable = true;
+  
+  wordpress = {
     enable = true;
-    sitesFile = ./sites.json;
-
+    sites = ../../sites.json;
+    tuning = {
+      enableAuto = true;
+    };
   };
 
-  # Enable auto-tuned mariadb
-  services.wpbox.mariadb = {
-    enable = true;
-    package = pkgs.mariadb;
-    autoTune.enable = true;
-  };
+  mariadb = {
+      enable = true;
+      package = pkgs.mariadb;
+      autoTune.enable = true;
+    };
+  
+  # Disabled on devm since runs locally
+  # nginx = {
+  #     enable = true;
+  #     enableSSL = true;
+  #     enableCloudflareRealIP = true;
+  #     enableHSTSPreload = true;
+  #     enableBrotli = true;
+  #     acmeEmail = "sys-admin@martel-innovate.com";
+  #   };
+  
+  # Fail2ban - Disabled on devm since runs locally
+    # fail2ban = {
+    #   enable = true;
+    #   banTime = "2h";
+    #   maxRetry = 3;
+    #   ignoreIP = [
+    #     "127.0.0.1/8"
+    #     "::1"
+    #     "100.64.0.0/10"  # Tailscale
+    #   ];
+    # };
 
-  # Enable systemd hardening
-  services.wpbox.security = {
-    enableHardening = true;
-    level = "strict";
-    applyToPhpFpm = true;
-    applyToNginx = true;
-    applyToMariadb = true;
-  };
-
-  services.wpbox.nginx.enable = true;
-
-  # ACME / Let's Encrypt (⚠️ CHANGE THE EMAIL!)
-  security.acme = {
-    acceptTerms = true;
-    defaults.email = "admin@example.com"; # ⚠️ CHANGE THIS!
-  };
+  security = {
+      enableHardening = true;
+      level = "strict";
+      applyToPhpFpm = true;
+      applyToNginx = true;
+      applyToMariadb = true;
+    };
+};
 
 }

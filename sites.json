@@ -3,10 +3,6 @@
     {
       "domain": "example.com",
       "enabled": true,
-      "ssl": {
-        "enabled": true,
-        "forceSSL": true
-      },
       "php": {
         "memory_limit": "256M",
         "max_execution_time": 300,

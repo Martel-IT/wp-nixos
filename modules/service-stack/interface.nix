@@ -50,13 +50,13 @@ with types;
       };
     };
 
-    # --- mariadb ---
+    # --- MARIADB ---
     mariadb = {
       enable = mkEnableOption "Managed mariadb 8.0";
       
       package = mkOption {
         type = package;
-        default = pkgs.mariadb80;
+        default = pkgs.mariadb;
         description = "mariadb package to use.";
       };
 
@@ -83,12 +83,70 @@ with types;
     # --- NGINX ---
     nginx = {
       enable = mkEnableOption "Managed Nginx Proxy";
-      # Add extra Nginx-specific options here if needed
+      
+      enableSSL = mkOption {
+        type = bool;
+        default = true;
+        description = "Enable SSL/TLS with ACME for all sites";
+      };
+      
+      enableCloudflareRealIP = mkOption {
+        type = bool;
+        default = true;
+        description = "Enable Cloudflare Real IP detection";
+      };
+      
+      enableBrotli = mkOption {
+        type = bool;
+        default = true;
+        description = "Enable Brotli compression";
+      };
+      
+      enableHSTSPreload = mkOption {
+        type = bool;
+        default = true;
+        description = "Enable HSTS preload directive";
+      };
+      
+      acmeEmail = mkOption {
+        type = str;
+        default = "sys-admin@martel-innovate.com";
+        description = "Email for ACME/Let's Encrypt notifications";
+      };
     };
 
     # --- PHP-FPM ---
     phpfpm = {
       enable = mkEnableOption "Managed PHP-FPM Pools";
+    };
+
+    # --- FAIL2BAN ---
+    fail2ban = {
+      enable = mkEnableOption "Fail2ban WordPress protection";
+      
+      banTime = mkOption {
+        type = str;
+        default = "1h";
+        description = "Ban duration";
+      };
+      
+      findTime = mkOption {
+        type = str;
+        default = "10m";
+        description = "Time window to count failures";
+      };
+      
+      maxRetry = mkOption {
+        type = int;
+        default = 5;
+        description = "Max failures before ban";
+      };
+      
+      ignoreIP = mkOption {
+        type = listOf str;
+        default = [ "127.0.0.1/8" "::1" "100.64.0.0/10" ];
+        description = "IPs to never ban (Tailscale, localhost, etc)";
+      };
     };
 
     # --- SECURITY ---
@@ -113,10 +171,10 @@ with types;
         description = "Apply hardening to Nginx service.";
       };
 
-      applyTomariadb = mkOption {
+      applyToMariadb = mkOption {
         type = bool;
         default = true;
-        description = "Apply hardening to mariadb service.";
+        description = "Apply hardening to MariaDB service.";
       };
     };
   };
