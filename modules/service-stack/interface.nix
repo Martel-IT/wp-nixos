@@ -159,6 +159,12 @@ with types;
         description = "Hardening level intensity.";
       };
 
+      applyToTailscale = mkOption {
+        type = bool;
+        default = true;
+        description = "Apply hardening to Tailscale service.";
+      };
+
       applyToPhpFpm = mkOption {
         type = bool;
         default = true;

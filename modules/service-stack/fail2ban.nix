@@ -9,41 +9,40 @@ in
 {
   options.services.wpbox.fail2ban = {
     enable = mkEnableOption "Fail2ban protection for WordPress";
-    
+
     banTime = mkOption {
       type = types.str;
       default = "1h";
       description = "Ban duration";
     };
-    
+
     findTime = mkOption {
       type = types.str;
       default = "10m";
       description = "Time window to count failures";
     };
-    
+
     maxRetry = mkOption {
       type = types.int;
       default = 5;
       description = "Maximum failures before ban";
     };
-    
+
     ignoreIP = mkOption {
       type = types.listOf types.str;
-      default = [ "127.0.0.1/8" "::1" "100.64.0.0/10" ];
-      description = "IPs to never ban (Tailscale, localhost, etc)";
+      default = [ "127.0.0.1/8" "::1" "100.64.0.0/10" ]; # localhost + Tailscale CGNAT
+      description = "IPs to never ban (local/internal)";
     };
   };
-  
+
   config = mkIf (cfg.enable && wpCfg.enable) {
-    
     services.fail2ban = {
       enable = true;
       maxretry = cfg.maxRetry;
       bantime = cfg.banTime;
       findtime = cfg.findTime;
       ignoreIP = cfg.ignoreIP;
-      
+
       jails = {
         # WordPress login attempts
         wordpress-auth = ''
@@ -55,7 +54,7 @@ in
           bantime = ${cfg.banTime}
           action = iptables-multiport[name=wp-auth, port="http,https", protocol=tcp]
         '';
-        
+
         # WordPress XMLRPC attacks
         wordpress-xmlrpc = ''
           enabled = true
@@ -66,8 +65,8 @@ in
           bantime = 24h
           action = iptables-multiport[name=wp-xmlrpc, port="http,https", protocol=tcp]
         '';
-        
-        # Nginx 429 rate limit violations
+
+        # Nginx rate limit violations
         nginx-ratelimit = ''
           enabled = true
           filter = nginx-ratelimit
@@ -77,8 +76,8 @@ in
           bantime = 30m
           action = iptables-multiport[name=nginx-limit, port="http,https", protocol=tcp]
         '';
-        
-        # Nginx bad requests / exploits
+
+        # Nginx bad bots / exploits
         nginx-badbots = ''
           enabled = true
           filter = nginx-badbots
@@ -90,8 +89,7 @@ in
         '';
       };
     };
-    
-    # Fail2ban filters
+
     environment.etc = {
       "fail2ban/filter.d/wordpress-auth.conf".text = ''
         [Definition]
@@ -99,19 +97,19 @@ in
                     ^<HOST> .* "POST /xmlrpc\.php HTTP/.*" 200
         ignoreregex =
       '';
-      
+
       "fail2ban/filter.d/wordpress-xmlrpc.conf".text = ''
         [Definition]
         failregex = ^<HOST> .* "POST /xmlrpc\.php HTTP/.*" 200
         ignoreregex =
       '';
-      
+
       "fail2ban/filter.d/nginx-ratelimit.conf".text = ''
         [Definition]
         failregex = limiting requests, excess:.* by zone.*client: <HOST>
         ignoreregex =
       '';
-      
+
       "fail2ban/filter.d/nginx-badbots.conf".text = ''
         [Definition]
         failregex = ^<HOST> .* "(GET|POST|HEAD).*(\.php\?|SELECT |UNION |INSERT |eval\(|base64_).*" \d+ \d+
@@ -120,8 +118,7 @@ in
         ignoreregex =
       '';
     };
-    
-    # Ensure logs exist
+
     systemd.tmpfiles.rules = [
       "f /var/log/nginx/fail2ban.log 0644 nginx nginx - -"
     ];

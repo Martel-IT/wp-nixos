@@ -52,10 +52,34 @@ let
     ];
   };
 
+  tailscaleHardening = {
+    ProtectSystem = "strict";
+    ProtectHome = true;
+    PrivateTmp = true;
+    PrivateDevices = true;
+    NoNewPrivileges = true;
+    RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
+    CapabilityBoundingSet = [
+      "CAP_NET_ADMIN"
+      "CAP_NET_BIND_SERVICE"
+      "CAP_NET_RAW"
+      "CAP_DAC_READ_SEARCH"
+    ];
+  };
+
 in
 {
   
   config = mkIf cfg.enableHardening {
+
+    systemd.services.tailscaled = mkIf cfg.applyToTailscale tailscaleHardening;
+
+    systemd.services.tailscale-autoconnect = mkIf cfg.applyToTailscale (
+      tailscaleHardening // {
+        User = "root";
+        Type = "oneshot";
+      }
+    );
 
     services.phpfpm.pools = mkIf cfg.applyToPhpFpm (
       mapAttrs' (hostName: siteCfg: 
