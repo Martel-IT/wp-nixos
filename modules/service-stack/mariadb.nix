@@ -124,13 +124,13 @@ in
     {
       # --- SAFETY CHECKS ---
       warnings = 
-  let 
-    totalAllocatedMb = phpFpmRamMb + dbBudgetMb + reservedRamMb;
-  in
-  optional (systemRamMb > 0 && totalAllocatedMb > systemRamMb)
-    "WPBox MariaDB: Total allocated RAM (${toString totalAllocatedMb}MB) exceeds system RAM (${toString systemRamMb}MB). Risk of OOM!" ++
-  optional (dbBudgetMb < 512)
-    "WPBox MariaDB: Database budget is critically low (${toString dbBudgetMb}MB). Consider reducing PHP-FPM workers or increasing system RAM.";
+      let 
+        totalAllocatedMb = phpFpmRamMb + dbBudgetMb + reservedRamMb;
+      in
+      (optional (systemRamMb > 0 && totalAllocatedMb > systemRamMb)
+        "WPBox MariaDB: Total allocated RAM (${toString totalAllocatedMb}MB) exceeds system RAM (${toString systemRamMb}MB). Risk of OOM!") ++
+      (optional (dbBudgetMb < 512)
+        "WPBox MariaDB: Database budget is critically low (${toString dbBudgetMb}MB). Consider reducing PHP-FPM workers or increasing system RAM.");
 
       # --- ENABLE MARIADB SERVICE ---
       services.mysql = {

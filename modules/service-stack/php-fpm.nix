@@ -154,7 +154,7 @@ in
     };
   };
 
-  config = mkIf (cfg.enable || phpCfg.enable) {
+  config = mkIf (config.services.wpbox.enable) {
     # Assertions
     assertions = [
       {
@@ -240,7 +240,7 @@ in
               opcache.max_accelerated_files = ${toString phpCfg.opcache.maxFiles}
               opcache.max_wasted_percentage = 5
               opcache.use_cwd = 1
-              opcache.validate_timestamps = ${if phpCfg.opcache.validateTimestamps then "1" else "0"}
+              opcache.validate_timestamps = ${toString (siteOpts.php.opcache_validate_timestamps or phpCfg.opcache.validateTimestamps)};
               opcache.revalidate_freq = ${toString phpCfg.opcache.revalidateFreq}
               opcache.fast_shutdown = 1
               opcache.enable_file_override = 0

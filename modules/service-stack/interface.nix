@@ -140,7 +140,11 @@ with types;
 
     # --- PHP-FPM ---
     phpfpm = {
-      enable = mkEnableOption "Managed PHP-FPM Pools";
+      enable = mkOption {
+        type = bool;
+        default = true;
+        description = "Managed PHP-FPM Pools";
+      };
     };
 
     # --- FAIL2BAN ---
@@ -171,6 +175,36 @@ with types;
         description = "IPs to never ban (Tailscale, localhost, etc)";
       };
     };
+
+    # --- REDIS ---
+    redis = {
+      enable = mkEnableOption "Redis server for object/session cache";
+
+      package = mkOption {
+        type = package;
+        default = pkgs.redis; 
+        description = "Redis package to use."; 
+      };
+
+      bind = mkOption { 
+        type = str; 
+        default = "127.0.0.1";
+        description = "Redis bind address"; 
+      };
+
+      port = mkOption { 
+        type = int; 
+        default = 6379; 
+        description = "Redis port"; 
+      };
+
+      maxmemory = mkOption {
+        type = str; 
+        default = "128mb";
+        description = "Maximum allowed memory usage";
+      };
+    };
+
 
     # --- SECURITY ---
     security = {

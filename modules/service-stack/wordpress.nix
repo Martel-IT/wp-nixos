@@ -120,8 +120,8 @@ in
         message = "All sites in configuration must have 'domain' and 'enabled' fields";
       }
       {
-        assertion = all (site: site ? php && site.php ? memory_limit) (attrValues sitesFromConfig);
-        message = "All sites must have php.memory_limit configured";
+        assertion = all (site: site ? php) (attrValues sitesFromConfig);
+        message = "All sites must have 'php' configuration block";
       }
     ];
 

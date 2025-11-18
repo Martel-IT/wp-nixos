@@ -44,6 +44,17 @@ in
       ignoreIP = cfg.ignoreIP;
 
       jails = {
+
+        wordpress = ''
+          enabled = true
+          filter = wordpress
+          logpath = /var/log/nginx/*-access.log
+          maxretry = ${toString cfg.maxRetry}
+          findtime = ${cfg.findTime}
+          bantime = ${cfg.banTime}
+          action = iptables-multiport[name=wpbox, port="http,https", protocol=tcp]
+        '';
+        
         # WordPress login attempts
         wordpress-auth = ''
           enabled = true
