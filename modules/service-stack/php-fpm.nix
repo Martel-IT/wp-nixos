@@ -58,6 +58,7 @@ in {
         emergency_restart_threshold = phpCfg.emergency.restartThreshold;
         emergency_restart_interval = phpCfg.emergency.restartInterval;
         process_control_timeout = "10s";
+        pid = "/run/phpfpm/php-fpm.pid";
       };
 
       # Pool Overlay
@@ -108,11 +109,10 @@ in {
           '';
         in
         nameValuePair "wordpress-${name}" {
-          # RIMOSSO: user, group. Lasciamo fare al modulo upstream (wordpress).
+
           
           phpOptions = phpIniSettings;
           
-          # RIMOSSO: listen.*, error_log. Usiamo solo il tuning.
           settings = poolSettings // {
             "catch_workers_output" = "yes";
             "decorate_workers_output" = "no";
@@ -120,17 +120,10 @@ in {
             
             "request_terminate_timeout" = toString ((siteOpts.php.max_execution_time or cfg.defaults.maxExecutionTime) + 30);
             "request_slowlog_timeout" = "5s";
-            # Il slowlog path va bene definirlo
-            "slowlog" = "/var/log/phpfpm/wordpress-${name}-slow.log";
-            
+            "slowlog" = "/var/log/phpfpm/wordpress-${name}-slow.log";            
             "pm.status_path" = phpCfg.monitoring.statusPath;
-            # Nota: status_listen deve essere diverso per ogni pool se usiamo TCP, 
-            # ma qui stiamo usando il socket principale. Rimuoviamolo per semplicità o usiamo socket.
-            # "pm.status_listen" = ... (Rimosso per evitare conflitti di porta)
-            
             "ping.path" = phpCfg.monitoring.pingPath;
-            "ping.response" = "pong";
-            
+            "ping.response" = "pong";            
             "process.priority" = "-5";
             "security.limit_extensions" = ".php .phtml";
           };
@@ -153,7 +146,7 @@ in {
     systemd.tmpfiles.rules = [
       "d /var/log/phpfpm 0750 wordpress nginx - -"
       "d /var/cache/wordpress 0750 wordpress nginx - -"
-      # Non tocchiamo /run/phpfpm qui, lasciamo fare a systemd del modulo ufficiale
+      "d /run/phpfpm 0750 wordpress nginx - -"
       "d /tmp/wordpress 1777 root root - -"
     ] ++ flatten (mapAttrsToList (name: _: [
       # Creiamo i file di log vuoti con i permessi giusti
