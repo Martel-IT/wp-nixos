@@ -73,7 +73,7 @@ let
       "-/etc/ssl"
       "-/etc/pki"
       "-/etc/ca-certificates"
-      "/usr/share/zoneinfo"
+      "-/usr/share/zoneinfo"
 
     ];
     CapabilityBoundingSet = "";
