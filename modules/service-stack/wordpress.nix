@@ -74,7 +74,7 @@ in
         database = {
           createLocally = true;
           name = "wp_${sanitizeName name}";
-          user = "wp_${sanitizeName name}";
+          user = "wordpress";
           passwordFile = mkDefault null; # Uses socket auth
           host = "localhost";
         };
@@ -146,7 +146,7 @@ in
     # System users and groups
     users.users.wordpress = {
       isSystemUser = true;
-      group = "wordpress";
+      group = mkForce "wordpress";
       home = "/var/lib/wordpress";
       createHome = false;
     };

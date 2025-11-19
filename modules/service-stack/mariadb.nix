@@ -51,7 +51,7 @@ in
       availablePhpRamMb = systemRamMb - reservedRamMb;
       totalMaxChildren = max 2 (availablePhpRamMb / avgProcessMb);
       safeSiteCount = if numberOfSites > 0 then numberOfSites else 1;
-      calculatedChildrenPerSite = max 2 (floor (totalMaxChildren / safeSiteCount));
+      calculatedChildrenPerSite = max 2 (builtins.floor (totalMaxChildren / safeSiteCount));
       phpFpmRamMb = calculatedChildrenPerSite * avgProcessMb * safeSiteCount;
 
       # --- 2. CALCULATE DB BUDGET ---

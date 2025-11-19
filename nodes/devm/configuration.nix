@@ -134,11 +134,11 @@ services.wpbox = {
   # Disabled on devm since runs locally
   nginx = {
     enable = true;
-    # enableSSL = true;
-    # enableCloudflareRealIP = true;
-    # enableBrotli = false;  # Disable Brotli to save CPU
-    # enableHSTSPreload = true;
-    # acmeEmail = "sys-admin@martel-innovate.com";
+    enableSSL = false;
+    enableCloudflareRealIP = false;
+    enableBrotli = false;  # Disable Brotli to save CPU
+    enableHSTSPreload = false;
+    acmeEmail = "sys-admin@martel-innovate.com";
       
     # Performance tuning
     workerProcesses = 2;  # Match CPU cores

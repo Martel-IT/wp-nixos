@@ -43,7 +43,7 @@ let
       totalMaxChildren = max 2 (availablePhpRamMb / avgProcessMb);
       
       # Distribute workers among sites
-      baseChildrenPerSite = max 2 (floor (totalMaxChildren / safeSiteCount));
+      baseChildrenPerSite = max 2 (builtins.floor (totalMaxChildren / safeSiteCount));
       
       # Adjust based on system cores and RAM
       adjustedChildrenPerSite = 
@@ -55,7 +55,7 @@ let
           min 10 baseChildrenPerSite
         else if systemCores >= 8 then
           # Large server: can handle more
-          min (baseChildrenPerSite * 2) (floor (totalMaxChildren / safeSiteCount))
+          min (baseChildrenPerSite * 2) (builtins.floor (totalMaxChildren / safeSiteCount))
         else
           baseChildrenPerSite;
     in {
