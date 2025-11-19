@@ -30,7 +30,7 @@ let
     if wpCfg.sitesFile != null then
       parseSitesFromFile wpCfg.sitesFile
     else
-      wpCfg.sites;
+      wpCfg.sites; # Questa opzione è ora definita e usata da interface.nix
 
   # Filter only enabled sites
   activeSites = filterAttrs (n: v: v.enabled) sitesFromConfig;
