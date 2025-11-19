@@ -1,6 +1,5 @@
 {
   imports = [
-    ./hardware-detection.nix
     ./interface.nix
     ./mariadb.nix
     ./nginx.nix
