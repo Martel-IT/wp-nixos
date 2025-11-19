@@ -39,67 +39,6 @@ let
   sanitizeName = name: replaceStrings ["." "-"] ["_" "_"] name;
 in
 {
-  options.services.wpbox.wordpress = {
-    enable = mkEnableOption "WordPress hosting with auto-configuration";
-    
-    package = mkOption {
-      type = types.package;
-      default = pkgs.wordpress;
-      description = "The WordPress package to use";
-    };
-    
-    sitesFile = mkOption {
-      type = types.nullOr types.path;
-      default = null;
-      description = "Path to sites.json configuration file";
-    };
-    
-    sites = mkOption {
-      type = types.attrsOf types.anything;
-      default = {};
-      description = "Sites configuration (can be set directly or loaded from sitesFile)";
-    };
-
-    tuning = {
-      enableAuto = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Enable auto-tuning based on System RAM";
-      };
-      
-      osRamHeadroom = mkOption {
-        type = types.int;
-        default = 2048;
-        description = "RAM (MB) reserved for OS/Nginx/MariaDB";
-      };
-      
-      avgProcessSize = mkOption {
-        type = types.int;
-        default = 70;
-        description = "Estimated RAM (MB) per PHP worker";
-      };
-    };
-
-    defaults = {
-      phpMemoryLimit = mkOption {
-        type = types.str;
-        default = "256M";
-        description = "Default PHP memory limit";
-      };
-      
-      maxExecutionTime = mkOption {
-        type = types.int;
-        default = 300;
-        description = "Default PHP max execution time";
-      };
-      
-      uploadMaxSize = mkOption {
-        type = types.str;
-        default = "64M";
-        description = "Default max upload size";
-      };
-    };
-  };
 
   config = mkIf (cfg.enable && wpCfg.enable) {
     # Set parsed sites to the sites option for use by other modules
@@ -127,7 +66,7 @@ in
 
     # WordPress service configuration
     services.wordpress = {
-      webserver = "none"; # We use our own Nginx config
+      webserver = "nginx"; 
       
       sites = mapAttrs (name: siteOpts: {
         package = mkDefault wpCfg.package;
@@ -211,7 +150,6 @@ in
       home = "/var/lib/wordpress";
       createHome = false;
     };
-
     users.groups.wordpress = {
       members = [ "wordpress" "nginx" ];
     };

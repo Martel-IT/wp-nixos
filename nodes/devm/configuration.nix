@@ -80,10 +80,17 @@ services.wpbox = {
   
   wordpress = {
     enable = true;
-    sites = ../../sites.json;
+    sitesFile = ../../sites.json;
     tuning = {
       enableAuto = true;
     };
+  };
+
+  redis = {
+    enable = true;
+    bind = null; # Disable TCP (socket only)
+    port = 0;    # Disable TCP port
+    autoTune.enable = true;
   };
 
   mariadb = {
@@ -91,16 +98,18 @@ services.wpbox = {
       package = pkgs.mariadb;
       autoTune.enable = true;
     };
+
+
   
   # Disabled on devm since runs locally
-  # nginx = {
-  #     enable = true;
-  #     enableSSL = true;
-  #     enableCloudflareRealIP = true;
-  #     enableHSTSPreload = true;
-  #     enableBrotli = true;
-  #     acmeEmail = "sys-admin@martel-innovate.com";
-  #   };
+  nginx = {
+      enable = true;
+      # enableSSL = true;
+      # enableCloudflareRealIP = true;
+      # enableHSTSPreload = true;
+      enableBrotli = true;
+      # acmeEmail = "sys-admin@martel-innovate.com";
+    };
   
   # Fail2ban - Disabled on devm since runs locally
     # fail2ban = {
@@ -114,13 +123,18 @@ services.wpbox = {
     #   ];
     # };
 
+    # tailscale = {
+    #   enable = true;
+    # };
+
   security = {
-      enableHardening = true;
-      level = "strict";
-      applyToPhpFpm = true;
-      applyToNginx = true;
-      applyToMariadb = true;
-    };
+    enableHardening = true;
+    level = "strict";
+    applyToPhpFpm = true;
+    applyToNginx = true;
+    applyToMariadb = true;
+    applyToRedis = true;
+  };
 };
 
 }

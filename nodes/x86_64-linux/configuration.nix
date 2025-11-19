@@ -1,25 +1,17 @@
-{ config, pkgs, ... }:
+{ config, lib, pkgs, ... }:
 
 {
+  #############################
+  ##   GENERAL OS SETTINGS   ##
+  #############################
 
   imports = [./hardware-configuration.nix];
 
-  # ################################################
-  # ##              SYSTEM INFO                   ##
-  # ################################################
-
-  networking.hostName = "wpbox-dev";
+  networking.hostName = "wp-box-x86_64";
   time.timeZone = "Europe/Amsterdam";
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
   system.stateVersion = "25.05";
-
-  # ################################################
-  # ##         SYSTEM CONFIGURATION               ##
-  # ################################################
-
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
 
   environment.systemPackages = with pkgs; [
     awscli2
@@ -33,42 +25,39 @@
     jq
   ];
 
+  fileSystems."/" = {
+    device = "/dev/disk/by-partlabel/disk-main-root";
+    fsType = "ext4";
+  };
+
+  fileSystems."/boot" = {
+    device = "/dev/disk/by-partlabel/disk-main-ESP";
+    fsType = "vfat";
+  };
+
+  fileSystems."/backup" = {
+    device = "/dev/disk/by-partlabel/disk-main-backup";
+    fsType = "ext4";
+  };
+
+  boot.loader.grub = {
+    enable = true;
+    devices = [ "/dev/sda" ];
+  }; 
+
+  swapDevices = [{
+    device = "/swapfile";
+    size = 4096;  # 4GB
+  }];
+
   boot.kernel.sysctl = {
     "vm.swappiness" = 10;
     "vm.vfs_cache_pressure" = 50;
   };
 
-  # Swap configuration following best practices
-  # Physical RAM | Suggested Swap
-  # ≤ 2 GB       | = RAM x2
-  # 4–8 GB       | = RAM (1×)
-  # 8–32 GB      | = RAM / 2
-  # > 32 GB      | = 4-8 GB fixed
-
-  swapDevices = [{
-    device = "/swapfile";
-    size = 8192;  # 8GB
-  }];
-
-    # Automatic security updates
-  system.autoUpgrade = {
-    enable = true;
-    allowReboot = false;
-    dates = "04:00";
-  };
-
-  # Garbage collection
-  nix.gc = {
-    automatic = true;
-    dates = "weekly";
-    options = "--delete-older-than 30d";
-  };
-
   #############################
   ##   SECURITY HARDENING    ##
   #############################
-
-  nix.settings.allowed-users = [ "@wheel" ];
 
   users.users.root.hashedPassword = "!";
 
@@ -106,6 +95,12 @@
     trustedInterfaces = [ "tailscale0" ];
   };
 
+  #############################
+  ##    SERVICES SETTINGS    ##
+  #############################
+
+  # Limit Nix daemon usage to wheel group
+  nix.settings.allowed-users = [ "@wheel" ];
 
   # ################################################
   # ##           WPBOX CONFIGURATION              ##
@@ -116,10 +111,17 @@ services.wpbox = {
   
   wordpress = {
     enable = true;
-    sites = ../../sites.json;
+    sitesFile = ../../sites.json;
     tuning = {
       enableAuto = true;
     };
+  };
+
+  redis = {
+    enable = true;
+    bind = null; # Disable TCP (socket only)
+    port = 0;    # Disable TCP port
+    autoTune.enable = true;
   };
 
   mariadb = {
@@ -137,6 +139,7 @@ services.wpbox = {
       acmeEmail = "sys-admin@martel-innovate.com";
     };
   
+  # Fail2ban - Disabled on devm since runs locally
     fail2ban = {
       enable = true;
       banTime = "2h";
@@ -148,17 +151,17 @@ services.wpbox = {
       ];
     };
 
-  tailscale = {
-      enable = true;
-    };
+    # tailscale = {
+    #   enable = true;
+    # };
 
   security = {
-      enableHardening = true;
-      level = "strict";
-      applyToPhpFpm = true;
-      applyToNginx = true;
-      applyToMariadb = true;
-    };
+    enableHardening = true;
+    level = "strict";
+    applyToPhpFpm = true;
+    applyToNginx = true;
+    applyToMariadb = true;
+    applyToRedis = true;
+  };
 };
-
 }

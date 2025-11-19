@@ -7,6 +7,7 @@
     ./php-fpm.nix
     ./wordpress.nix
     ./fail2ban.nix
-    ./tailscale.nix
+    # ./tailscale.nix
+    ./redis.nix
   ];
 }

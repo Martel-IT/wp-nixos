@@ -22,9 +22,9 @@ let
     RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
   };
 
+
   phpHardening = commonHardening // {
     ProtectKernelLogs = true;
-    # Syscall filtering
     SystemCallFilter = [ 
       "@system-service"
       "~@privileged"
@@ -35,6 +35,7 @@ let
     CapabilityBoundingSet = "";
   };
 
+
   nginxHardening = commonHardening // {
     ProtectKernelLogs = true;
     SystemCallFilter = [ 
@@ -42,14 +43,52 @@ let
       "~@privileged"
     ];
     SystemCallErrorNumber = "EPERM";
-    CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ];
+    CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ]; 
     AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
     ReadWritePaths = [
       "/var/log/nginx"
       "/var/cache/nginx"
       "/var/spool/nginx"
-      "/run/phpfpm" # FIX: Permette a Nginx di accedere ai socket PHP
+      "/run/phpfpm" 
     ];
+  };
+
+  redisHardening = {
+    PrivateTmp = true;
+    PrivateDevices = true;
+    ProtectHome = true;
+    ProtectHostname = true;
+    ProtectClock = true;
+    ProtectKernelTunables = true;
+    ProtectKernelModules = true;
+    ProtectKernelLogs = true;
+    ProtectControlGroups = true;
+    
+    SystemCallFilter = [ "@system-service" "~@privileged" "~@resources" ];
+    SystemCallErrorNumber = "EPERM";
+    SystemCallArchitectures = "native";
+    
+    ProtectSystem = "strict";
+    ReadWritePaths = [
+      "/var/lib/redis-wpbox"
+      "/run/redis-wpbox"
+      "/var/log/redis" 
+    ];
+    
+    NoNewPrivileges = true;
+    CapabilityBoundingSet = [ ];
+    AmbientCapabilities = [ ];
+    
+    LockPersonality = true;
+    RestrictRealtime = true;
+    RestrictSUIDSGID = true;
+    RestrictNamespaces = true;
+    RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
+    PrivateNetwork = mkIf (config.services.wpbox.redis.bind == null && config.services.wpbox.redis.port == 0) true;
+    
+    LimitNOFILE = "65536";
+    LimitNPROC = "512";
+    MemoryDenyWriteExecute = true;
   };
 
   tailscaleHardening = {
@@ -72,13 +111,19 @@ in
   
   config = mkIf cfg.enableHardening {
 
-    systemd.services.tailscaled = mkIf cfg.applyToTailscale tailscaleHardening;
-    systemd.services.tailscale-autoconnect = mkIf cfg.applyToTailscale (
-      tailscaleHardening // {
-        User = "root";
-        Type = "oneshot";
-      }
-    );
+    systemd.services.tailscaled = mkIf cfg.applyToTailscale {
+      serviceConfig = lib.mkMerge [
+        (config.systemd.services.tailscaled.serviceConfig or {})
+        tailscaleHardening
+      ];
+    };
+    
+    systemd.services.tailscale-autoconnect = mkIf cfg.applyToTailscale {
+      serviceConfig = lib.mkMerge [
+        (config.systemd.services.tailscale-autoconnect.serviceConfig or {}) # Preserve original config
+        tailscaleHardening # Add hardening options
+      ];
+    };
 
     services.phpfpm.pools = mkIf cfg.applyToPhpFpm (
       mapAttrs' (hostName: siteCfg: 
@@ -88,7 +133,7 @@ in
                "/var/lib/wordpress/${hostName}" 
                "/run/phpfpm"
                "/run/mysqld"
-               "/tmp" # FIX: Necessario per sessioni e upload temporanei PHP
+               "/tmp" 
              ];
              BindReadOnlyPaths = [ 
                "/nix/store" 
@@ -109,6 +154,10 @@ in
          PrivateTmp = true;
          ProtectSystem = "full";
       };
+    };
+
+    systemd.services.redis-wpbox = mkIf (config.services.wpbox.redis.enable && cfg.applyToRedis) {
+      serviceConfig = redisHardening;
     };
   };
 }

@@ -7,7 +7,7 @@
 
   imports = [./hardware-configuration.nix];
 
-  networking.hostName = "odoo-instance";
+  networking.hostName = "wp-box-aarch64";
   time.timeZone = "Europe/Amsterdam";
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
@@ -106,32 +106,40 @@
   # ##           WPBOX CONFIGURATION              ##
   # ################################################
 
-  services.wpbox = {
+services.wpbox = {
+  enable = true;
+  
+  wordpress = {
     enable = true;
-  
-    wordpress = {
-        enable = true;
-        sites = ../../sites.json;
-        tuning = {
-        enableAuto = true;
-        };
+    sitesFile = ../../sites.json;
+    tuning = {
+      enableAuto = true;
     };
+  };
 
-    mariadb = {
-        enable = true;
-        package = pkgs.mariadb;
-        autoTune.enable = true;
-        };
+  redis = {
+    enable = true;
+    bind = null; # Disable TCP (socket only)
+    port = 0;    # Disable TCP port
+    autoTune.enable = true;
+  };
+
+  mariadb = {
+      enable = true;
+      package = pkgs.mariadb;
+      autoTune.enable = true;
+    };
   
-    nginx = {
-        enable = true;
-        enableSSL = true;
-        enableCloudflareRealIP = true;
-        enableHSTSPreload = true;
-        enableBrotli = true;
-        acmeEmail = "sys-admin@martel-innovate.com";
-        };
-
+  nginx = {
+      enable = true;
+      enableSSL = true;
+      enableCloudflareRealIP = true;
+      enableHSTSPreload = true;
+      enableBrotli = true;
+      acmeEmail = "sys-admin@martel-innovate.com";
+    };
+  
+  # Fail2ban - Disabled on devm since runs locally
     fail2ban = {
       enable = true;
       banTime = "2h";
@@ -143,12 +151,17 @@
       ];
     };
 
-    security = {
-        enableHardening = true;
-        level = "strict";
-        applyToPhpFpm = true;
-        applyToNginx = true;
-        applyToMariadb = true;
-        };
+    # tailscale = {
+    #   enable = true;
+    # };
+
+  security = {
+    enableHardening = true;
+    level = "strict";
+    applyToPhpFpm = true;
+    applyToNginx = true;
+    applyToMariadb = true;
+    applyToRedis = true;
   };
+};
 }

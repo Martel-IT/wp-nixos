@@ -7,54 +7,15 @@ let
   wpCfg = config.services.wpbox.wordpress;
 in
 {
-  options.services.wpbox.fail2ban = {
-    enable = mkEnableOption "Fail2ban protection for WordPress";
-
-    banTime = mkOption {
-      type = types.str;
-      default = "1h";
-      description = "Ban duration";
-    };
-
-    findTime = mkOption {
-      type = types.str;
-      default = "10m";
-      description = "Time window to count failures";
-    };
-
-    maxRetry = mkOption {
-      type = types.int;
-      default = 5;
-      description = "Maximum failures before ban";
-    };
-
-    ignoreIP = mkOption {
-      type = types.listOf types.str;
-      default = [ "127.0.0.1/8" "::1" "100.64.0.0/10" ]; # localhost + Tailscale CGNAT
-      description = "IPs to never ban (local/internal)";
-    };
-  };
-
+  
   config = mkIf (cfg.enable && wpCfg.enable) {
     services.fail2ban = {
       enable = true;
       maxretry = cfg.maxRetry;
       bantime = cfg.banTime;
-      findtime = cfg.findTime;
       ignoreIP = cfg.ignoreIP;
-
+      
       jails = {
-
-        wordpress = ''
-          enabled = true
-          filter = wordpress
-          logpath = /var/log/nginx/*-access.log
-          maxretry = ${toString cfg.maxRetry}
-          findtime = ${cfg.findTime}
-          bantime = ${cfg.banTime}
-          action = iptables-multiport[name=wpbox, port="http,https", protocol=tcp]
-        '';
-        
         # WordPress login attempts
         wordpress-auth = ''
           enabled = true
@@ -108,19 +69,16 @@ in
                     ^<HOST> .* "POST /xmlrpc\.php HTTP/.*" 200
         ignoreregex =
       '';
-
       "fail2ban/filter.d/wordpress-xmlrpc.conf".text = ''
         [Definition]
         failregex = ^<HOST> .* "POST /xmlrpc\.php HTTP/.*" 200
         ignoreregex =
       '';
-
       "fail2ban/filter.d/nginx-ratelimit.conf".text = ''
         [Definition]
         failregex = limiting requests, excess:.* by zone.*client: <HOST>
         ignoreregex =
       '';
-
       "fail2ban/filter.d/nginx-badbots.conf".text = ''
         [Definition]
         failregex = ^<HOST> .* "(GET|POST|HEAD).*(\.php\?|SELECT |UNION |INSERT |eval\(|base64_).*" \d+ \d+
@@ -130,7 +88,8 @@ in
       '';
     };
 
-    systemd.tmpfiles.rules = [
+    systemd.tmpfiles.rules = 
+    [
       "f /var/log/nginx/fail2ban.log 0644 nginx nginx - -"
     ];
   };
