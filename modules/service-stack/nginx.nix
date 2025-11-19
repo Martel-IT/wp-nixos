@@ -50,6 +50,7 @@ in
       "d /var/lib/nginx 0755 nginx nginx - -"
       "d /var/log/nginx 0755 nginx nginx - -"
       "d /var/spool/nginx 0750 nginx nginx -"
+      "f /var/lib/nginx/cloudflare-real-ip.conf 0644 nginx nginx - -"
     ];
     
     systemd.services.wpbox-cloudflare-ips = {
@@ -66,27 +67,18 @@ in
       script = ''
         echo "Updating Cloudflare IP ranges..."
         
-        ${pkgs.curl}/bin/curl -s -f https://www.cloudflare.com/ips-v4 > ${cfipv4Path}.tmp
-        if [ $? -eq 0 ]; then
-          mv ${cfipv4Path}.tmp ${cfipv4Path}
-          echo "✓ IPv4 ranges updated"
-        else
-          echo "✗ Failed to download IPv4 ranges"
-          rm -f ${cfipv4Path}.tmp
-        fi
+        (
+          ${pkgs.curl}/bin/curl -s https://www.cloudflare.com/ips-v4; echo "";
+          ${pkgs.curl}/bin/curl -s https://www.cloudflare.com/ips-v6;
+        ) | while read ip; do
+          [ -n "$ip" ] && echo "set_real_ip_from $ip;" >> /var/lib/nginx/cloudflare-real-ip.conf.tmp
+        done
         
-        ${pkgs.curl}/bin/curl -s -f https://www.cloudflare.com/ips-v6 > ${cfipv6Path}.tmp
-        if [ $? -eq 0 ]; then
-          mv ${cfipv6Path}.tmp ${cfipv6Path}
-          echo "✓ IPv6 ranges updated"
-        else
-          echo "✗ Failed to download IPv6 ranges"
-          rm -f ${cfipv6Path}.tmp
-        fi
+        echo "real_ip_header CF-Connecting-IP;" >> /var/lib/nginx/cloudflare-real-ip.conf.tmp
+
+        mv /var/lib/nginx/cloudflare-real-ip.conf.tmp /var/lib/nginx/cloudflare-real-ip.conf
         
-        # Reload nginx se è attivo
         if systemctl is-active --quiet nginx.service; then
-          echo "Reloading nginx configuration..."
           systemctl reload nginx.service
         fi
       '';
@@ -145,16 +137,7 @@ in
         proxy_headers_hash_bucket_size 128;
         
         ${optionalString cfg.enableCloudflareRealIP ''
-        # Cloudflare Real IP detection (loaded from runtime files)
-        ${let
-          v4ips = fileToList cfipv4Path;
-          v6ips = fileToList cfipv6Path;
-        in
-          if (length v4ips > 0 || length v6ips > 0) then
-            realIpsFromList (v4ips ++ v6ips) + "\nreal_ip_header CF-Connecting-IP;"
-          else
-            "# Cloudflare IPs not loaded yet - will be populated by systemd service"
-        }
+          include /var/lib/nginx/cloudflare-real-ip.conf;
         ''}
         
         ${cacheSkipDirectives}

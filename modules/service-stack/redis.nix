@@ -4,7 +4,7 @@ with lib;
 
 let 
   cfg = config.services.wpbox.redis;
-  hwCfg = config.hardware;
+  hwCfg = config.services.wpbox.hardware;
   wpCfg = config.services.wpbox.wordpress;
   
   # Get system resources from hardware detection

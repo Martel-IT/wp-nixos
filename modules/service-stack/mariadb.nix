@@ -5,23 +5,24 @@ with lib;
 let
   cfg = config.services.wpbox.mariadb;
   wpCfg = config.services.wpbox.wordpress;
+  hwCfg = config.services.wpbox.hardware;
 
   getDetectedRamMb = 
     let
       ramFile = "/run/wpbox/detected-ram-mb";
-      fallbackRam = 4096;
+      fallbackRam = hwCfg.fallback.ramMb;
     in
-    if config.hardware.runtimeMemoryMb != null 
-    then config.hardware.runtimeMemoryMb
+    if hwCfg.runtimeMemoryMb != null 
+    then hwCfg.runtimeMemoryMb
     else fallbackRam;
 
   getDetectedCores =
     let
       coresFile = "/run/wpbox/detected-cores";
-      fallbackCores = 2;
+      fallbackCores = hwCfg.fallback.cores;
     in
-    if config.hardware.runtimeCores != null
-    then config.hardware.runtimeCores
+    if hwCfg.runtimeCores != null
+    then hwCfg.runtimeCores
     else fallbackCores;
 in
 {
