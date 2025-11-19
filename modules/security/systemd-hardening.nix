@@ -168,7 +168,7 @@ let
     ReadWritePaths = [
       "/var/lib/redis-wpbox"
       "/run/redis-wpbox"
-      "/var/log/redis"
+      "-/var/log/redis"
     ];
     PrivateNetwork = if (config.services.wpbox.redis.bind == null && config.services.wpbox.redis.port == 0) then true else false;
     RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
