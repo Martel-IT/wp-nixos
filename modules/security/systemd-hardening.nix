@@ -72,7 +72,10 @@ let
     else commonHardening;
 
   phpHardening = selectedHardening // {
-    PrivateUsers = false; 
+    ProtectSystem = mkForce false;
+    PrivateUsers = false;
+    PrivateTmp = false;
+    NoNewPrivileges = false;
     SystemCallFilter = [ "@system-service" "~@privileged" "~@resources" "setpriority" "kill" ];
     CapabilityBoundingSet = [ "CAP_SETGID" "CAP_SETUID" ];
     AmbientCapabilities = [];

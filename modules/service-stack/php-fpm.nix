@@ -58,7 +58,6 @@ in {
         emergency_restart_threshold = phpCfg.emergency.restartThreshold;
         emergency_restart_interval = phpCfg.emergency.restartInterval;
         process_control_timeout = "10s";
-        pid = "/run/phpfpm/php-fpm.pid";
       };
 
       # Pool Overlay
@@ -109,7 +108,8 @@ in {
           '';
         in
         nameValuePair "wordpress-${name}" {
-
+          user = "wordpress";
+          group = "wordpress";
           
           phpOptions = phpIniSettings;
           
@@ -117,7 +117,9 @@ in {
             "catch_workers_output" = "yes";
             "decorate_workers_output" = "no";
             "clear_env" = "no";
-            
+            "listen.owner" = "nginx";
+            "listen.group" = "nginx";
+            "listen.mode" = "0660";
             "request_terminate_timeout" = toString ((siteOpts.php.max_execution_time or cfg.defaults.maxExecutionTime) + 30);
             "request_slowlog_timeout" = "5s";
             "slowlog" = "/var/log/phpfpm/wordpress-${name}-slow.log";            
@@ -170,25 +172,48 @@ in {
       '';
     };
 
+    systemd.services = mapAttrs' (name: _:
+      nameValuePair "phpfpm-wordpress-${name}" {
+        serviceConfig = {
+          # PHP-FPM deve partire come root per creare il socket
+          # poi droppa i privilegi internamente
+          User = lib.mkForce "root";
+          Group = lib.mkForce "root";
+          
+          # Aggiungi restart policy
+          Restart = "on-failure";
+          RestartSec = "5s";
+          
+          # Path permissions
+          RuntimeDirectory = "phpfpm";
+          RuntimeDirectoryMode = "0755";
+        };
+      }
+    ) activeSites;
+
     # Monitoring e Health Check (Semplificati)
-    systemd.services.phpfpm-health = {
-      description = "PHP-FPM Health Check";
-      after = [ "phpfpm.target" ];
-      serviceConfig = {
-        Type = "oneshot";
-        ExecStart = pkgs.writeScript "phpfpm-health" ''
-          #!${pkgs.bash}/bin/bash
-          echo "PHP-FPM Health Check: OK"
-        '';
-      };
-    };
+    # systemd.services = {
+      
+    #   phpfpm-health = {
+    #     description = "PHP-FPM Health Check";
+    #     after = [ "phpfpm.target" ];
+    #     serviceConfig = {
+    #       Type = "oneshot";
+    #       ExecStart = pkgs.writeScript "phpfpm-health" ''
+    #         #!${pkgs.bash}/bin/bash
+    #         echo "PHP-FPM Health Check: OK"
+    #       '';
+    #     };
+    #   };
+
+
     
     # Timer e Activation Script (Invariati)
-    systemd.timers.phpfpm-health = {
-      description = "PHP-FPM Health Check Timer";
-      wantedBy = [ "timers.target" ];
-      timerConfig = { OnBootSec = "2min"; OnUnitActiveSec = "5min"; Persistent = true; };
-    };
+    # systemd.timers.phpfpm-health = {
+    #   description = "PHP-FPM Health Check Timer";
+    #   wantedBy = [ "timers.target" ];
+    #   timerConfig = { OnBootSec = "2min"; OnUnitActiveSec = "5min"; Persistent = true; };
+    # };
 
     system.activationScripts.wpbox-phpfpm-info = lib.mkAfter ''
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
