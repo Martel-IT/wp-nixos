@@ -6,10 +6,7 @@ let
   cfg = config.services.wpbox.security;
   wpCfg = config.services.wpbox.wordpress;
 
-  # Base hardening applicable to all services
   commonHardening = {
-    # Filesystem Protection
-    # FIX: Usiamo mkForce per vincere contro i default "full" o "read-only" dei moduli upstream
     ProtectSystem = mkForce "strict";
     ProtectHome = mkForce true;
     PrivateTmp = true;
@@ -21,60 +18,32 @@ let
     ProtectProc = "invisible";
     ProtectHostname = true;
     ProtectClock = true;
-    
-    # Capabilities
     NoNewPrivileges = true;
     RestrictSUIDSGID = true;
     RemoveIPC = true;
-    
-    # System Calls
     LockPersonality = true;
     MemoryDenyWriteExecute = true;
     SystemCallArchitectures = "native";
-    SystemCallFilter = [
-      "@system-service"
-      "~@privileged"
-      "~@resources"
-      "~@mount"
-      "~@reboot"
-      "~@swap"
-      "~@obsolete"
-      "~@debug"
-    ];
+    SystemCallFilter = [ "@system-service" "~@privileged" "~@resources" "~@mount" "~@reboot" "~@swap" "~@obsolete" "~@debug" ];
     SystemCallErrorNumber = "EPERM";
-    
-    # Real-time
     RestrictRealtime = true;
-    
-    # Namespaces
     RestrictNamespaces = true;
     PrivateUsers = true; 
-    
-    # Network
     RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
     IPAddressDeny = "any";
     IPAddressAllow = "";
-    
-    # Resource Limits
-    # FIX: mkForce per evitare conflitti se il servizio definisce già un limite
     LimitNOFILE = mkForce 65536;
     LimitNPROC = mkForce 512;
     TasksMax = mkForce 512;
-    
-    # Security
     SecureBits = "keep-caps";
   };
 
-  # Level-based hardening additions
   strictHardening = commonHardening // {
     ProcSubset = "pid";
     BindReadOnlyPaths = [
-      "/nix/store"
       "-/etc/ssl"
       "-/etc/pki"
       "-/etc/ca-certificates"
-      "-/usr/share/zoneinfo"
-
     ];
     CapabilityBoundingSet = "";
     AmbientCapabilities = "";
@@ -82,7 +51,7 @@ let
     TasksMax = mkForce 256;
     KeyringMode = "private";
     ProtectKernelPerformance = true;
-    # RestrictFileSystems = [ "ext4" "tmpfs" "proc" ];
+    # RestrictFileSystems = [ "ext4" "tmpfs" "proc" ]; # Commentato per evitare errori BPF
   };
 
   paranoidHardening = strictHardening // {
@@ -97,22 +66,14 @@ let
     SystemCallFilter = [ "@system-service" "~@privileged" ];
   };
 
-  # Select hardening level
   selectedHardening = 
     if cfg.level == "paranoid" then paranoidHardening
     else if cfg.level == "strict" then strictHardening
     else commonHardening;
 
-  # Service-specific hardening overrides
   phpHardening = selectedHardening // {
-    PrivateUsers = false; # PHP needs to switch users
-    SystemCallFilter = [ 
-      "@system-service"
-      "~@privileged"
-      "~@resources"
-      "setpriority"
-      "kill"
-    ];
+    PrivateUsers = false; 
+    SystemCallFilter = [ "@system-service" "~@privileged" "~@resources" "setpriority" "kill" ];
     CapabilityBoundingSet = [ "CAP_SETGID" "CAP_SETUID" ];
     AmbientCapabilities = [];
     IPAddressDeny = "";
@@ -120,29 +81,26 @@ let
     RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
     MemoryMax = "512M";
     CPUQuota = "";
+    
+    BindReadOnlyPaths = [ 
+      "/nix/store" 
+      "-/etc/ssl" 
+      "-/etc/pki" 
+      "-/etc/ca-certificates"
+      "-/usr/share/zoneinfo"
+    ];
   };
 
   nginxHardening = selectedHardening // {
     PrivateUsers = false;
-    SystemCallFilter = [ 
-      "@system-service"
-      "@network-io"
-      "~@privileged"
-      "~@resources"
-    ];
+    SystemCallFilter = [ "@system-service" "@network-io" "~@privileged" "~@resources" ];
     CapabilityBoundingSet = [ "CAP_NET_BIND_SERVICE" ]; 
     AmbientCapabilities = [ "CAP_NET_BIND_SERVICE" ];
     IPAddressDeny = "";
     IPAddressAllow = "";
     PrivateNetwork = false;
     RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" "AF_NETLINK" ];
-    ReadWritePaths = [
-      "/var/log/nginx"
-      "/var/cache/nginx"
-      "/var/spool/nginx"
-      "/run/nginx"
-      "/run/phpfpm"
-    ];
+    ReadWritePaths = [ "/var/log/nginx" "/var/cache/nginx" "/var/spool/nginx" "/run/nginx" "/run/phpfpm" ];
     LimitNOFILE = mkForce 131072;
     TasksMax = mkForce 4096;
   };
@@ -152,11 +110,7 @@ let
     PrivateTmp = true;
     ProtectSystem = "full";
     ProtectHome = true;
-    ReadWritePaths = [
-      "/var/lib/mysql"
-      "/run/mysqld"
-      "/var/log/mysql"
-    ];
+    ReadWritePaths = [ "/var/lib/mysql" "/run/mysqld" "/var/log/mysql" ];
     LimitNOFILE = mkForce 65536;
     LimitNPROC = mkForce 512;
     PrivateDevices = true;
@@ -167,12 +121,7 @@ let
   };
 
   redisHardening = selectedHardening // {
-    PrivateUsers = true;
-    ReadWritePaths = [
-      "/var/lib/redis-wpbox"
-      "/run/redis-wpbox"
-      "-/var/log/redis"
-    ];
+    ReadWritePaths = [ "/var/lib/redis-wpbox" "/run/redis-wpbox" "-/var/log/redis" ];
     PrivateNetwork = if (config.services.wpbox.redis.bind == null && config.services.wpbox.redis.port == 0) then true else false;
     RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
     IPAddressDeny = if (config.services.wpbox.redis.bind == null) then "any" else "";
@@ -187,25 +136,12 @@ let
   tailscaleHardening = selectedHardening // {
     PrivateNetwork = false;
     PrivateUsers = false;
-    CapabilityBoundingSet = [
-      "CAP_NET_ADMIN"
-      "CAP_NET_BIND_SERVICE"
-      "CAP_NET_RAW"
-      "CAP_DAC_READ_SEARCH"
-      "CAP_SYS_MODULE"
-    ];
-    AmbientCapabilities = [
-      "CAP_NET_ADMIN"
-      "CAP_NET_BIND_SERVICE"
-    ];
+    CapabilityBoundingSet = [ "CAP_NET_ADMIN" "CAP_NET_BIND_SERVICE" "CAP_NET_RAW" "CAP_DAC_READ_SEARCH" "CAP_SYS_MODULE" ];
+    AmbientCapabilities = [ "CAP_NET_ADMIN" "CAP_NET_BIND_SERVICE" ];
     RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" "AF_NETLINK" "AF_PACKET" ];
     IPAddressDeny = "";
     IPAddressAllow = "";
-    ReadWritePaths = [
-      "/var/lib/tailscale"
-      "/run/tailscale"
-      "/dev/net/tun"
-    ];
+    ReadWritePaths = [ "/var/lib/tailscale" "/run/tailscale" "/dev/net/tun" ];
     PrivateDevices = false;
     DeviceAllow = [ "/dev/net/tun rw" ];
   };
@@ -213,9 +149,7 @@ let
 in
 {
   config = mkIf cfg.enableHardening {
-    
     systemd.services = mkMerge [
-      # PHP-FPM services
       (mkIf cfg.applyToPhpFpm (
         mapAttrs' (hostName: siteCfg: 
           nameValuePair "phpfpm-wordpress-${hostName}" {
@@ -225,48 +159,26 @@ in
                 "/run/phpfpm"
                 "/tmp"
               ];
-              BindReadOnlyPaths = [ 
-                "/nix/store" 
-                "/etc/ssl"
-                "/usr/share/zoneinfo"
-              ];
+              # Usa la definizione locale sovrascrivendo se necessario, ma phpHardening ha già quella corretta
               MemoryMax = if config.services.wpbox.hardware.runtimeMemoryMb <= 4096 then "256M" else "512M";
             };
           }
         ) wpCfg.sites
       ))
-      
-      # Nginx hardening
-      (mkIf cfg.applyToNginx {
-        nginx.serviceConfig = nginxHardening;
-      })
-      
-      # MariaDB hardening
-      (mkIf cfg.applyToMariadb {
-        mariadb.serviceConfig = mariadbHardening;
-      })
-      
-      # Redis hardening
-      (mkIf (config.services.wpbox.redis.enable && cfg.applyToRedis) {
-        redis-wpbox.serviceConfig = redisHardening;
-      })
-      
-      # Tailscale hardening
+      (mkIf cfg.applyToNginx { nginx.serviceConfig = nginxHardening; })
+      (mkIf cfg.applyToMariadb { mariadb.serviceConfig = mariadbHardening; })
+      (mkIf (config.services.wpbox.redis.enable && cfg.applyToRedis) { redis-wpbox.serviceConfig = redisHardening; })
       (mkIf (config.services.wpbox.tailscale.enable && cfg.applyToTailscale) {
         tailscaled.serviceConfig = tailscaleHardening;
-        tailscale-autoconnect.serviceConfig = tailscaleHardening // {
-          Type = "oneshot";
-        };
+        tailscale-autoconnect.serviceConfig = tailscaleHardening // { Type = "oneshot"; };
       })
     ];
 
-    # AppArmor profiles
     security.apparmor = mkIf cfg.enableApparmor {
       enable = true;
       packages = with pkgs; [ apparmor-profiles ];
     };
 
-    # Kernel hardening
     boot.kernel.sysctl = mkIf (cfg.level == "strict" || cfg.level == "paranoid") {
       "kernel.dmesg_restrict" = 1;
       "kernel.kptr_restrict" = 2;
