@@ -81,11 +81,11 @@ in {
     services.phpfpm = {
       phpPackage = phpCfg.package;
       
-      extraConfig = ''
-        emergency_restart_threshold = ${toString phpCfg.emergency.restartThreshold}
-        emergency_restart_interval = ${phpCfg.emergency.restartInterval}
-        process_control_timeout = 10s
-      '';
+      settings = {
+        emergency_restart_threshold = phpCfg.emergency.restartThreshold;
+        emergency_restart_interval = phpCfg.emergency.restartInterval;
+        process_control_timeout = "10s";
+      };
 
       pools = mapAttrs' (name: siteOpts: 
         let
