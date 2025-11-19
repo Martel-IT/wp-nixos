@@ -109,7 +109,7 @@ in {
         in
         nameValuePair "wordpress-${name}" {
           user = "wordpress";
-          group = "wordpress";
+          group = "nginx";
           
           phpOptions = phpIniSettings;
           
