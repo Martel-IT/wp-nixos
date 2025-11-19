@@ -164,24 +164,23 @@ in {
             "listen.mode" = "0660";
             "listen.backlog" = "512";
             "listen.allowed_clients" = "127.0.0.1";
+            
             "php_admin_value[error_log]" = "/var/log/phpfpm/wordpress-${name}-error.log";
             "php_admin_flag[log_errors]" = "on";
             "catch_workers_output" = "yes";
             "decorate_workers_output" = "no";
             "clear_env" = "no";
+            
             "request_terminate_timeout" = toString ((siteOpts.php.max_execution_time or cfg.defaults.maxExecutionTime) + 30);
             "request_slowlog_timeout" = "5s";
             "slowlog" = "/var/log/phpfpm/wordpress-${name}-slow.log";
-            "env[HOSTNAME]" = "$HOSTNAME";
-            "env[PATH]" = "/usr/local/bin:/usr/bin:/bin";
-            "env[TMP]" = "/tmp";
-            "env[TMPDIR]" = "/tmp";
-            "env[TEMP]" = "/tmp";
+            
             "pm.status_path" = phpCfg.monitoring.statusPath;
             "pm.status_listen" = "127.0.0.1:9000";
             "ping.path" = phpCfg.monitoring.pingPath;
             "ping.response" = "pong";
             "access.log" = mkIf phpCfg.monitoring.enable "/var/log/phpfpm/wordpress-${name}-access.log";
+            
             "process.priority" = "-5";
             "rlimit_files" = "131072";
             "rlimit_core" = "unlimited";
@@ -190,9 +189,14 @@ in {
           
           phpEnv = {
             PATH = lib.makeBinPath [ phpCfg.package pkgs.coreutils pkgs.bash pkgs.gzip pkgs.bzip2 pkgs.findutils ];
+            TMP = "/tmp";
+            TMPDIR = "/tmp";
+            TEMP = "/tmp";
+            
+            # WordPress specific
             WP_HOME = "/var/lib/wordpress/${name}";
-            WP_DEBUG = if (siteOpts.wordpress.debug or false) then "true" else "false";
-            WP_CACHE = "true";
+            WP_DEBUG = if (siteOpts.wordpress.debug or false) then "1" else "0";
+            WP_CACHE = "1";
             WP_MEMORY_LIMIT = siteOpts.php.memory_limit or cfg.defaults.phpMemoryLimit;
           };
         }
