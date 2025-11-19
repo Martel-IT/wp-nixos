@@ -16,7 +16,7 @@
       "site3.martel-innovate.com" 
     ];
   };
-  
+
   time.timeZone = "Europe/Amsterdam";
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 
@@ -217,7 +217,7 @@ services.wpbox = {
   security = {
     enableHardening = true;
     level = "strict";
-    applyToPhpFpm = true;
+    # applyToPhpFpm = true;
     applyToNginx = true;
     applyToMariadb = true;
     applyToRedis = true;

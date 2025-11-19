@@ -149,7 +149,6 @@ in {
       "d /run/phpfpm 0750 wordpress nginx - -"
       "d /tmp/wordpress 1777 root root - -"
     ] ++ flatten (mapAttrsToList (name: _: [
-      # Creiamo i file di log vuoti con i permessi giusti
       "f /var/log/phpfpm/wordpress-${name}-error.log 0640 wordpress nginx - -"
       "f /var/log/phpfpm/wordpress-${name}-slow.log 0640 wordpress nginx - -"
     ]) activeSites);
