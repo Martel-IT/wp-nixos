@@ -139,17 +139,21 @@ in
         package = cfg.package;
         dataDir = cfg.dataDir;
         
-        settings = lib.mkMerge [
-          defaultSettings
-          (lib.mkIf cfg.autoTune.enable tunedSettings)
-        ];
+        # FIX: Le impostazioni devono stare sotto la sezione [mysqld]
+        settings = {
+          mysqld = lib.mkMerge [
+            defaultSettings
+            (lib.mkIf cfg.autoTune.enable tunedSettings)
+          ];
+        };
 
         ensureDatabases = [];
         ensureUsers = [];
       };
 
       # --- ACTIVATION INFO ---
-      system.activationScripts.wpbox-mariadb-info = lib.mkAfter (lib.mkIf cfg.autoTune.enable ''
+      # FIX: mkIf deve stare FUORI da mkAfter
+      system.activationScripts.wpbox-mariadb-info = lib.mkIf cfg.autoTune.enable (lib.mkAfter ''
         # Rileggi i valori reali dal file cache
         if [ -f /run/wpbox/detected-ram-mb ]; then
           ACTUAL_RAM=$(cat /run/wpbox/detected-ram-mb)

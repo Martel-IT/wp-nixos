@@ -1,7 +1,10 @@
-{ config, pkgs, ... }:
+{ config, pkgs, lib, modulesPath, ... }:
+
+with lib;
 
 {
-  imports = [./hardware-configuration.nix];
+  imports = [ "${modulesPath}/virtualisation/amazon-image.nix" ];
+  ec2.efi = true;
 
   # ################################################
   # ##              SYSTEM INFO                   ##
@@ -17,27 +20,12 @@
   # ##         (2 vCPU, 4GB RAM)                  ##
   # ################################################
 
-  boot.loader.grub = {
-    enable = true;
-    devices = [ "/dev/sda" ];
-  };
-
   # Swap configuration for small VPS
   swapDevices = [{
     device = "/swapfile";
     size = 2048;  # 2GB swap for 4GB RAM system
     priority = 10;
   }];
-
-  # Kernel tuning for small servers
-  boot.kernel.sysctl = {
-    # Memory management
-    "vm.swappiness" = 10;  # Minimize swapping
-    "vm.vfs_cache_pressure" = 50;
-    "vm.dirty_background_ratio" = 5;
-    "vm.dirty_ratio" = 10;
-    "vm.overcommit_memory" = 1;  # Allow overcommit
-  };
 
   # System packages (minimal)
   environment.systemPackages = with pkgs; [
@@ -97,7 +85,7 @@
     settings = {
       PasswordAuthentication = false;
       PubkeyAuthentication = true;
-      PermitRootLogin = "no";
+      PermitRootLogin = lib.mkForce "no";
       X11Forwarding = false;
       MaxAuthTries = 3;
       ClientAliveInterval = 300;
