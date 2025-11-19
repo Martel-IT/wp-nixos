@@ -191,6 +191,26 @@ in {
       }
     ) activeSites;
 
+    systemd.services."phpfpm-debug" = {
+      wantedBy = [ "multi-user.target" ];
+      before = map (name: "phpfpm-wordpress-${name}.service") (attrNames activeSites);
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        ExecStart = pkgs.writeScript "phpfpm-debug" ''
+          #!${pkgs.bash}/bin/bash
+          echo "=== PHP-FPM Debug Info ==="
+          echo "Checking directories:"
+          ls -la /run/phpfpm/ || echo "/run/phpfpm does not exist"
+          ls -la /var/lib/wordpress/ || echo "/var/lib/wordpress does not exist"
+          echo "Checking users:"
+          id wordpress || echo "wordpress user does not exist"
+          id nginx || echo "nginx user does not exist"
+          echo "========================"
+        '';
+      };
+    };
+
     # Monitoring e Health Check (Semplificati)
     # systemd.services = {
       
