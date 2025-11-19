@@ -61,7 +61,7 @@ with types;
           default = 4096;
           description = "Fallback RAM value in MB if detection fails";
         };
-
+        
         cores = mkOption {
           type = types.int;
           default = 2;
