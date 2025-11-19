@@ -1,6 +1,6 @@
-Odoo Box Docs
+WP Box Docs
 -------------
-> The nuts and bolts of running the Odoo show.
+> The nuts and bolts of running the WP show.
 
 We've put together some docs to explain how to build, deploy and
 operate our WPbox server.
