@@ -79,7 +79,7 @@ let
     TasksMax = mkForce 256;
     KeyringMode = "private";
     ProtectKernelPerformance = true;
-    RestrictFileSystems = [ "ext4" "tmpfs" "proc" ];
+    # RestrictFileSystems = [ "ext4" "tmpfs" "proc" ];
   };
 
   paranoidHardening = strictHardening // {
