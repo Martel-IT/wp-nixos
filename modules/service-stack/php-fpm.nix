@@ -164,23 +164,19 @@ in {
             "listen.mode" = "0660";
             "listen.backlog" = "512";
             "listen.allowed_clients" = "127.0.0.1";
-            
             "php_admin_value[error_log]" = "/var/log/phpfpm/wordpress-${name}-error.log";
             "php_admin_flag[log_errors]" = "on";
             "catch_workers_output" = "yes";
             "decorate_workers_output" = "no";
             "clear_env" = "no";
-            
             "request_terminate_timeout" = toString ((siteOpts.php.max_execution_time or cfg.defaults.maxExecutionTime) + 30);
             "request_slowlog_timeout" = "5s";
             "slowlog" = "/var/log/phpfpm/wordpress-${name}-slow.log";
-            
             "pm.status_path" = phpCfg.monitoring.statusPath;
             "pm.status_listen" = "127.0.0.1:9000";
             "ping.path" = phpCfg.monitoring.pingPath;
             "ping.response" = "pong";
             "access.log" = mkIf phpCfg.monitoring.enable "/var/log/phpfpm/wordpress-${name}-access.log";
-            
             "process.priority" = "-5";
             "rlimit_files" = "131072";
             "rlimit_core" = "unlimited";
@@ -192,8 +188,6 @@ in {
             TMP = "/tmp";
             TMPDIR = "/tmp";
             TEMP = "/tmp";
-            
-            # WordPress specific
             WP_HOME = "/var/lib/wordpress/${name}";
             WP_DEBUG = if (siteOpts.wordpress.debug or false) then "1" else "0";
             WP_CACHE = "1";
@@ -203,20 +197,20 @@ in {
       ) activeSites;
     };
 
-    # Directories
+    # FIX: Assegnamo ownership a wordpress:nginx altrimenti il servizio fallisce (exit code 78)
     systemd.tmpfiles.rules = [
-      "d /var/log/phpfpm 0755 root root - -"
+      "d /var/log/phpfpm 0770 wordpress nginx - -"
       "d /var/cache/wordpress 0755 wordpress nginx - -"
-      "d /var/run/phpfpm 0755 root root - -"
+      "d /var/run/phpfpm 0770 wordpress nginx - -"
+      "d /run/phpfpm 0770 wordpress nginx - -"  # Aggiunto anche /run esplicito
       "d /tmp/wordpress 1777 root root - -"
     ] ++ flatten (mapAttrsToList (name: _: [
-      "f /var/log/phpfpm/wordpress-${name}-error.log 0644 wordpress nginx - -"
-      "f /var/log/phpfpm/wordpress-${name}-slow.log 0644 wordpress nginx - -"
-      "f /var/log/phpfpm/wordpress-${name}-access.log 0644 wordpress nginx - -"
-      "f /var/log/phpfpm/opcache-${name}.log 0644 wordpress nginx - -"
+      "f /var/log/phpfpm/wordpress-${name}-error.log 0660 wordpress nginx - -"
+      "f /var/log/phpfpm/wordpress-${name}-slow.log 0660 wordpress nginx - -"
+      "f /var/log/phpfpm/wordpress-${name}-access.log 0660 wordpress nginx - -"
+      "f /var/log/phpfpm/opcache-${name}.log 0660 wordpress nginx - -"
     ]) activeSites);
 
-    # Log rotation
     services.logrotate.settings.phpfpm = {
       files = "/var/log/phpfpm/*.log";
       frequency = "daily";
@@ -225,7 +219,7 @@ in {
       delaycompress = true;
       notifempty = true;
       missingok = true;
-      create = "0644 wordpress nginx";
+      create = "0660 wordpress nginx";
       sharedscripts = true;
       postrotate = ''
         for pool in /run/phpfpm/*.sock; do
@@ -237,7 +231,6 @@ in {
       '';
     };
 
-    # Monitoring
     systemd.services.phpfpm-monitor = mkIf phpCfg.monitoring.enable {
       description = "PHP-FPM Pool Monitor";
       after = [ "phpfpm.target" ];
