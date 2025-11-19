@@ -7,19 +7,27 @@ let
   hwCfg = config.services.wpbox.hardware;
   wpCfg = config.services.wpbox.wordpress;
 
+  # Get system resources from hardware detection
   getSystemRamMb = 
     if hwCfg.runtimeMemoryMb != null then
       hwCfg.runtimeMemoryMb
     else
       hwCfg.fallback.ramMb or 4096;
 
+  # Calculate optimal Redis settings
   calculateRedisSettings = 
     let
       systemRamMb = getSystemRamMb;
+      
+      # FIX LOGICA: Redis vive nella Riserva
       reservedRamMb = wpCfg.tuning.osRamHeadroom or 2048;
-      availableForCache = lib.max 128 (systemRamMb - reservedRamMb);
-      redisMemoryRatio = cfg.autoTune.memoryAllocationRatio;
-      calculatedMaxMemoryMb = builtins.floor(availableForCache * redisMemoryRatio);
+      osOverheadMb = 1024;
+      availableInReserveMb = lib.max 512 (reservedRamMb - osOverheadMb);
+      
+      # Assegniamo il 20% dello spazio libero nella riserva a Redis
+      # (MariaDB ne prendeva il 60%, quindi rimane il 20% libero per buffer)
+      calculatedMaxMemoryMb = builtins.floor(availableInReserveMb * 0.20);
+      
       minMemoryMb = cfg.autoTune.minMemoryMb;
       maxMemoryMb = cfg.autoTune.maxMemoryMb;
       finalMaxMemoryMb = lib.max minMemoryMb (lib.min maxMemoryMb calculatedMaxMemoryMb);
@@ -41,22 +49,17 @@ let
 in {
   config = mkIf (config.services.wpbox.enable && cfg.enable) {
     
-    assertions = [
-      {
-        assertion = cfg.autoTune.memoryAllocationRatio > 0 && cfg.autoTune.memoryAllocationRatio < 0.5;
-        message = "Redis memory allocation ratio must be between 0 and 0.5 (0-50%)";
-      }
-    ];
-
+    # Warnings
     warnings = 
-      optional (redisSettings.finalMaxMemoryMb < 256)
-        "WPBox Redis: Memory allocation is low (${toString redisSettings.finalMaxMemoryMb}MB)."
+      optional (redisSettings.finalMaxMemoryMb < 64)
+        "WPBox Redis: Memory allocation is critically low (${toString redisSettings.finalMaxMemoryMb}MB)."
       ++
       optional (!cfg.persistence.enable)
         "WPBox Redis: Persistence is disabled. Data loss on restart is expected.";
 
     services.redis = {
       package = cfg.package;
+      
       servers.wpbox = { 
         enable = true;
         bind = cfg.bind;
@@ -69,7 +72,6 @@ in {
           maxmemory-policy = cfg.maxmemoryPolicy;
           maxmemory-samples = 5;
           
-          # Usiamo i default per la rete per evitare conflitti
           tcp-keepalive = 300;
           timeout = 300;
           
@@ -90,8 +92,8 @@ in {
           syslog-enabled = true;
           syslog-ident = "redis-wpbox";
           syslog-facility = "local0";
-          protected-mode = true;
           
+          protected-mode = true;
           rename-command = [
             "FLUSHDB \"\""
             "FLUSHALL \"\""
@@ -149,16 +151,12 @@ in {
       };
     };
     
-    # FIX: mkIf fuori da mkAfter
     system.activationScripts.wpbox-redis-info = lib.mkIf cfg.autoTune.enable (lib.mkAfter ''
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo "   WPBox Redis Configuration"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo "   System RAM:        ${toString redisSettings.systemRamMb}MB"
-      echo "   Redis Memory:      ${toString redisSettings.finalMaxMemoryMb}MB"
-      echo "   Eviction Policy:   ${cfg.maxmemoryPolicy}"
+      echo "   Redis Memory:      ${toString redisSettings.finalMaxMemoryMb}MB (from Reserve)"
       echo "   Persistence:       ${if cfg.persistence.enable then "✓ ENABLED" else "✗ DISABLED"}"
-      echo "   Auto-Tuning:       ${if cfg.autoTune.enable then "✓ ENABLED" else "✗ DISABLED"}"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     '');
   };

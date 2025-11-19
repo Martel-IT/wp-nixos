@@ -28,13 +28,11 @@ in
 {
   config = mkIf (config.services.wpbox.enable && cfg.enable) (
     let
-      # --- 1. GET SYSTEM & PHP-FPM FACTS ---
       systemRamMb = getDetectedRamMb;
       cpus = getDetectedCores;
       
       wpEnabled = config.services.wpbox.enable;
       
-      # Calculate PHP-FPM's total RAM usage
       activeSites = if wpEnabled 
                     then filterAttrs (n: v: v.enabled) config.services.wpbox.wordpress.sites
                     else {};
@@ -48,47 +46,38 @@ in
       reservedRamMb = wpTuning.osRamHeadroom or 2048;
       avgProcessMb = wpTuning.avgProcessSize or 70;
 
+      # PHP prende la RAM di sistema MENO la riserva.
       availablePhpRamMb = systemRamMb - reservedRamMb;
       totalMaxChildren = max 2 (availablePhpRamMb / avgProcessMb);
       safeSiteCount = if numberOfSites > 0 then numberOfSites else 1;
       calculatedChildrenPerSite = max 2 (builtins.floor (totalMaxChildren / safeSiteCount));
       phpFpmRamMb = calculatedChildrenPerSite * avgProcessMb * safeSiteCount;
 
-      # --- 2. CALCULATE DB BUDGET ---
-      availableRamMb = lib.max 512 (systemRamMb - phpFpmRamMb - reservedRamMb);
-      # Final budget for MariaDB
-      dbBudgetMb = builtins.floor(availableRamMb * cfg.autoTune.ramAllocationRatio);
-
-      # --- 3. CALCULATE TUNED VALUES ---
+      # FIX LOGICA: MariaDB vive DENTRO la riserva (reservedRamMb), non fuori.
+      # Stimiamo 1GB per Kernel/OS/Nginx puro. Il resto della riserva è per i servizi DB/Cache.
+      osOverheadMb = 1024;
+      availableInReserveMb = lib.max 512 (reservedRamMb - osOverheadMb);
       
-      # InnoDB Buffer Pool: 70% of DB budget (max 16GB for small servers)
+      # Assegniamo il 60% dello spazio libero nella riserva a MariaDB
+      dbBudgetMb = builtins.floor (availableInReserveMb * 0.60);
+
       innodbBufferPoolSizeMb = lib.min 16384 (builtins.floor(dbBudgetMb * 0.70));
       
-      # Tmp Table Size (Query Cache rimossa)
       tmpTableSizeMb = if dbBudgetMb > 2048 then 128 else 64;
       maxHeapTableSizeMb = tmpTableSizeMb;
       
-      # Buffers per connection
       sortBufferSizeMb = 2;
       readBufferSizeMb = 1;
       joinBufferSizeMb = 2;
       
-      # InnoDB Log File Size: 25% of buffer pool (max 2GB)
       innodbLogFileSizeMb = lib.min 2048 (builtins.floor(innodbBufferPoolSizeMb * 0.25));
 
-      # Max Connections
       maxConnections = 50 + (numberOfSites * 30) + (cpus * 10);
 
-      # Thread Cache
       threadCacheSize = builtins.floor(maxConnections * 0.10);
-
-      # Table Open Cache
       tableOpenCache = 2000 + (numberOfSites * 200);
-
-      # InnoDB instances
       innodbBufferPoolInstances = lib.min 8 (lib.max 1 (builtins.floor(innodbBufferPoolSizeMb / 1024)));
 
-      # --- Default Settings ---
       defaultSettings = {
         "character-set-server" = "utf8mb4";
         "collation-server" = "utf8mb4_unicode_ci";
@@ -102,44 +91,31 @@ in
         table_definition_cache = "4096";
       };
 
-      # --- Tuned Settings ---
       tunedSettings = {
         innodb_buffer_pool_size = "${toString innodbBufferPoolSizeMb}M";
         innodb_buffer_pool_instances = toString innodbBufferPoolInstances;
         innodb_log_file_size = "${toString innodbLogFileSizeMb}M";
-        
-        # Query Cache rimosso per compatibilità futura
-        
         tmp_table_size = "${toString tmpTableSizeMb}M";
         max_heap_table_size = "${toString maxHeapTableSizeMb}M";
-        
         sort_buffer_size = "${toString sortBufferSizeMb}M";
         read_buffer_size = "${toString readBufferSizeMb}M";
         join_buffer_size = "${toString joinBufferSizeMb}M";
-        
         max_connections = toString maxConnections;
         thread_cache_size = toString threadCacheSize;
         table_open_cache = toString tableOpenCache;
       };
     in
     {
-      # --- SAFETY CHECKS ---
+      # Warnings: Ora controlliamo solo se il budget è sensato, non se sfora il totale (perché è incluso nella riserva)
       warnings = 
-      let 
-        totalAllocatedMb = phpFpmRamMb + dbBudgetMb + reservedRamMb;
-      in
-      (optional (systemRamMb > 0 && totalAllocatedMb > systemRamMb)
-        "WPBox MariaDB: Total allocated RAM (${toString totalAllocatedMb}MB) exceeds system RAM (${toString systemRamMb}MB). Risk of OOM!") ++
-      (optional (dbBudgetMb < 512)
-        "WPBox MariaDB: Database budget is critically low (${toString dbBudgetMb}MB). Consider reducing PHP-FPM workers or increasing system RAM.");
+      (optional (dbBudgetMb < 256)
+        "WPBox MariaDB: Database budget is low (${toString dbBudgetMb}MB). Ensure osRamHeadroom is sufficient.");
 
-      # --- ENABLE MARIADB SERVICE ---
       services.mysql = {
         enable = true;
         package = cfg.package;
         dataDir = cfg.dataDir;
         
-        # FIX: Le impostazioni devono stare sotto la sezione [mysqld]
         settings = {
           mysqld = lib.mkMerge [
             defaultSettings
@@ -151,10 +127,7 @@ in
         ensureUsers = [];
       };
 
-      # --- ACTIVATION INFO ---
-      # FIX: mkIf deve stare FUORI da mkAfter
       system.activationScripts.wpbox-mariadb-info = lib.mkIf cfg.autoTune.enable (lib.mkAfter ''
-        # Rileggi i valori reali dal file cache
         if [ -f /run/wpbox/detected-ram-mb ]; then
           ACTUAL_RAM=$(cat /run/wpbox/detected-ram-mb)
           ACTUAL_CORES=$(cat /run/wpbox/detected-cores)
@@ -166,18 +139,14 @@ in
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
         echo "   WPBox MariaDB Auto-Tuning"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "   System RAM:         ''${ACTUAL_RAM}MB (detected)"
-        echo "   CPU Cores:          ''${ACTUAL_CORES} (detected)"
-        echo "   Reserved (OS):      ${toString reservedRamMb}MB"
-        echo "   PHP-FPM RAM:        ${toString phpFpmRamMb}MB"
-        echo "   DB Budget:          ${toString dbBudgetMb}MB"
+        echo "   System RAM:         ''${ACTUAL_RAM}MB"
+        echo "   Reserved (Stack):   ${toString reservedRamMb}MB"
+        echo "   DB Budget (Res.):   ${toString dbBudgetMb}MB"
         echo "   InnoDB Buffer Pool: ${toString innodbBufferPoolSizeMb}MB"
         echo "   Max Connections:    ${toString maxConnections}"
-        echo "   Auto-Tuning:        ${if cfg.autoTune.enable then "✓ ENABLED" else "✗ DISABLED"}"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       '');
 
-      # --- SYSTEMD TMPFILES ---
       systemd.tmpfiles.rules = [
         "d '${cfg.dataDir}' 0750 mysql mysql - -"
         "d /run/wpbox 0755 root root - -"
