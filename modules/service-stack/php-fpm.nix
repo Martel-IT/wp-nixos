@@ -174,19 +174,19 @@ in {
 
     systemd.services = mapAttrs' (name: _:
       nameValuePair "phpfpm-wordpress-${name}" {
-        serviceConfig = {
+        serviceConfig = lib.mkForce {
           # PHP-FPM deve partire come root per creare il socket
           # poi droppa i privilegi internamente
           User = lib.mkForce "root";
           Group = lib.mkForce "root";
           
           # Aggiungi restart policy
-          Restart = "on-failure";
-          RestartSec = "5s";
+          Restart = lib.mkForce "on-failure";
+          RestartSec = lib.mkForce "5s";
           
           # Path permissions
-          RuntimeDirectory = "phpfpm";
-          RuntimeDirectoryMode = "0755";
+          RuntimeDirectory = lib.mkForce "phpfpm";
+          RuntimeDirectoryMode = lib.mkForce "0755";
         };
       }
     ) activeSites;
