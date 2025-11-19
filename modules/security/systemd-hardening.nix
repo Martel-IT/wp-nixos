@@ -69,9 +69,12 @@ let
   strictHardening = commonHardening // {
     ProcSubset = "pid";
     BindReadOnlyPaths = [
+      "/nix/store"
       "-/etc/ssl"
       "-/etc/pki"
       "-/etc/ca-certificates"
+      "/usr/share/zoneinfo"
+
     ];
     CapabilityBoundingSet = "";
     AmbientCapabilities = "";
