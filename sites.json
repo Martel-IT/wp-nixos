@@ -3,55 +3,88 @@
     {
       "domain": "site1.martel-innovate.com",
       "enabled": true,
+
+      "ssl": {
+        "enabled": true,    
+        "forceSSL": true    
+      },
+
       "php": {
         "memory_limit": "256M",
         "max_execution_time": 300,
-        "custom_pool": null
+        "opcache_validate_timestamps": true,
+        "extra_ini": "upload_max_filesize = 64M",
+        "custom_pool": null 
       },
+
       "nginx": {
-        "client_max_body_size": "64M",
-        "custom_locations": {}
+        "client_max_body_size": "128M",
+        "custom_locations": {
+        }
       },
+
       "wordpress": {
         "debug": false,
-        "auto_update": false,
-        "extra_config": ""
+        "auto_update": true,
+        "extra_config": "define('WP_POST_REVISIONS', 5);"
       }
     },
     {
       "domain": "site2.martel-innovate.com",
       "enabled": true,
+
+      "ssl": {
+        "enabled": true,    
+        "forceSSL": true    
+      },
+
       "php": {
         "memory_limit": "256M",
         "max_execution_time": 300,
-        "custom_pool": null
+        "opcache_validate_timestamps": true,
+        "extra_ini": "upload_max_filesize = 64M",
+        "custom_pool": null 
       },
+
       "nginx": {
-        "client_max_body_size": "64M",
-        "custom_locations": {}
+        "client_max_body_size": "128M",
+        "custom_locations": {
+        }
       },
+
       "wordpress": {
         "debug": false,
-        "auto_update": false,
-        "extra_config": ""
+        "auto_update": true,
+        "extra_config": "define('WP_POST_REVISIONS', 6);"
       }
     },
     {
       "domain": "site3.martel-innovate.com",
       "enabled": true,
+
+      "ssl": {
+        "enabled": true,    
+        "forceSSL": true    
+      },
+
       "php": {
         "memory_limit": "256M",
         "max_execution_time": 300,
-        "custom_pool": null
+        "opcache_validate_timestamps": true,
+        "extra_ini": "upload_max_filesize = 64M",
+        "custom_pool": null 
       },
+
       "nginx": {
-        "client_max_body_size": "64M",
-        "custom_locations": {}
+        "client_max_body_size": "128M",
+        "custom_locations": {
+        }
       },
+
       "wordpress": {
         "debug": false,
-        "auto_update": false,
-        "extra_config": ""
+        "auto_update": true,
+        "extra_config": "define('WP_POST_REVISIONS', 5);"
       }
     }
   ]

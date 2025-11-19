@@ -9,6 +9,14 @@
   # ################################################
 
   networking.hostName = "wpbox-dev";
+  networking.hosts = {
+    "127.0.0.1" = [ 
+      "site1.martel-innovate.com" 
+      "site2.martel-innovate.com" 
+      "site3.martel-innovate.com" 
+    ];
+  };
+  
   time.timeZone = "Europe/Amsterdam";
   nix.settings.experimental-features = [ "nix-command" "flakes" ];
 

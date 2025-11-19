@@ -69,9 +69,9 @@ let
   strictHardening = commonHardening // {
     ProcSubset = "pid";
     BindReadOnlyPaths = [
-      "/etc/ssl"
-      "/etc/pki"
-      "/etc/ca-certificates"
+      "-/etc/ssl"
+      "-/etc/pki"
+      "-/etc/ca-certificates"
     ];
     CapabilityBoundingSet = "";
     AmbientCapabilities = "";

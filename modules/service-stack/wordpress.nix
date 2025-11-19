@@ -92,6 +92,9 @@ in
       ]) activeSites);
 
     systemd.services = mapAttrs' (name: siteOpts:
+    let
+      protocol = if (siteOpts.ssl.enabled or cfg.nginx.enableSSL) then "https" else "http";
+    in
       nameValuePair "wordpress-cron-${name}" {
         description = "WordPress Cron for ${name}";
         after = [ "network.target" "mysql.service" ];
@@ -99,7 +102,7 @@ in
           Type = "oneshot";
           User = "wordpress";
           Group = "wordpress";
-          ExecStart = "${pkgs.curl}/bin/curl -s -o /dev/null https://${name}/wp-cron.php?doing_wp_cron";
+          ExecStart = "${pkgs.curl}/bin/curl -s -o /dev/null ${protocol}://${name}/wp-cron.php?doing_wp_cron";
         };
       }
     ) activeSites;
