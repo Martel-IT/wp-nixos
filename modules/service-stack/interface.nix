@@ -15,58 +15,24 @@ with types;
       description = "Path to the sites.json configuration file.";
     };
 
-    # --- HARDWARE DETECTION (moved from hardware-detection.nix) ---
+    # --- HARDWARE SPECIFICATION ---
     hardware = {
-      runtimeMemoryMb = mkOption {
-        type = types.nullOr types.int;
-        default = null;
+      ramMb = mkOption {
+        type = types.int;
+        default = 4096;
         description = ''
-          Override detected system RAM in MB. 
-          If null, will be auto-detected at runtime from /proc/meminfo.
+          System RAM in MB. Used for build-time tuning calculations.
+          This value must match your actual server RAM.
         '';
       };
       
-      runtimeCores = mkOption {
-        type = types.nullOr types.int;
-        default = null;
+      cores = mkOption {
+        type = types.int;
+        default = 2;
         description = ''
-          Override detected CPU cores.
-          If null, will be auto-detected at runtime from /proc/cpuinfo.
+          Number of CPU cores. Used for build-time tuning calculations.
+          This value must match your actual server CPU count.
         '';
-      };
-
-      detectionCache = {
-        directory = mkOption {
-          type = types.path;
-          default = "/run/wpbox";
-          description = "Directory where runtime detection values are cached";
-        };
-
-        ramFile = mkOption {
-          type = types.str;
-          default = "detected-ram-mb";
-          description = "Filename for cached RAM value";
-        };
-
-        coresFile = mkOption {
-          type = types.str;
-          default = "detected-cores";
-          description = "Filename for cached CPU cores value";
-        };
-      };
-
-      fallback = {
-        ramMb = mkOption {
-          type = types.int;
-          default = 4096;
-          description = "Fallback RAM value in MB if detection fails";
-        };
-        
-        cores = mkOption {
-          type = types.int;
-          default = 2;
-          description = "Fallback CPU cores value if detection fails";
-        };
       };
     };
 

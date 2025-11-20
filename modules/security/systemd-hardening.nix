@@ -164,7 +164,7 @@ in
                 "/var/log/phpfpm"
               ];
               # Usa la definizione locale sovrascrivendo se necessario, ma phpHardening ha già quella corretta
-              MemoryMax = if config.services.wpbox.hardware.runtimeMemoryMb <= 4096 then "256M" else "512M";
+              MemoryMax = if config.services.wpbox.hardware.ramMb <= 4096 then "256M" else "512M";
             };
           }
         ) wpCfg.sites

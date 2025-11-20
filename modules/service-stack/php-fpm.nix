@@ -7,17 +7,16 @@ let
   phpCfg = config.services.wpbox.phpfpm;
   hwCfg = config.services.wpbox.hardware;
   
-  # --- Calcolo Risorse (Invariato) ---
-  getSystemRamMb = if hwCfg.runtimeMemoryMb != null then hwCfg.runtimeMemoryMb else hwCfg.fallback.ramMb;
-  getSystemCores = if hwCfg.runtimeCores != null then hwCfg.runtimeCores else hwCfg.fallback.cores;
   activeSites = filterAttrs (n: v: v.enabled) cfg.sites;
   numberOfSites = length (attrNames activeSites);
   safeSiteCount = max 1 numberOfSites;
   
   calculatePoolSizes = 
     let
-      systemRamMb = getSystemRamMb;
-      systemCores = getSystemCores;
+      # Direct access to hardware config
+      systemRamMb = hwCfg.ramMb;
+      systemCores = hwCfg.cores;
+      
       autoTune = cfg.tuning.enableAuto;
       reservedRamMb = cfg.tuning.osRamHeadroom;
       avgProcessMb = cfg.tuning.avgProcessSize;
@@ -44,28 +43,23 @@ in {
   
   config = mkIf (config.services.wpbox.enable && phpCfg.enable) {
     
-    # Assertions & Warnings (Invariati)
     assertions = [
-      { assertion = poolSizes.systemRamMb > 0; message = "System RAM detection failed"; }
+      { assertion = poolSizes.systemRamMb > 0; message = "System RAM must be greater than 0"; }
     ];
 
-    # PHP-FPM Service
     services.phpfpm = {
       phpPackage = phpCfg.package;
       
-      # Settings Globali
       settings = {
         emergency_restart_threshold = phpCfg.emergency.restartThreshold;
         emergency_restart_interval = phpCfg.emergency.restartInterval;
         process_control_timeout = "10s";
       };
 
-      # Pool Overlay
       pools = mapAttrs' (name: siteOpts: 
         let
           customPool = siteOpts.php.custom_pool or null;
           
-          # Calcolo Tuning
           poolSettings = if customPool != null then customPool
           else {
             pm = "dynamic";
@@ -108,24 +102,21 @@ in {
           '';
         in
         nameValuePair "wordpress-${name}" {
-          user = "wordpress";
-          group = "nginx";
-          
           phpOptions = phpIniSettings;
           
           settings = poolSettings // {
             "catch_workers_output" = "yes";
             "decorate_workers_output" = "no";
             "clear_env" = "no";
-            "listen.owner" = "nginx";
-            "listen.group" = "nginx";
-            "listen.mode" = "0660";
+            
             "request_terminate_timeout" = toString ((siteOpts.php.max_execution_time or cfg.defaults.maxExecutionTime) + 30);
             "request_slowlog_timeout" = "5s";
-            "slowlog" = "/var/log/phpfpm/wordpress-${name}-slow.log";            
+            "slowlog" = "/var/log/phpfpm/wordpress-${name}-slow.log";
+            
             "pm.status_path" = phpCfg.monitoring.statusPath;
             "ping.path" = phpCfg.monitoring.pingPath;
-            "ping.response" = "pong";            
+            "ping.response" = "pong";
+            
             "process.priority" = "-5";
             "security.limit_extensions" = ".php .phtml";
           };
@@ -144,11 +135,9 @@ in {
       ) activeSites;
     };
 
-    # Manteniamo le regole TMP per i log e le cartelle extra
     systemd.tmpfiles.rules = [
       "d /var/log/phpfpm 0750 wordpress nginx - -"
       "d /var/cache/wordpress 0750 wordpress nginx - -"
-      "d /run/phpfpm 0750 wordpress nginx - -"
       "d /tmp/wordpress 1777 root root - -"
     ] ++ flatten (mapAttrsToList (name: _: [
       "f /var/log/phpfpm/wordpress-${name}-error.log 0640 wordpress nginx - -"
@@ -172,55 +161,31 @@ in {
       '';
     };
 
-    systemd.services = mapAttrs' (name: _:
-      nameValuePair "phpfpm-wordpress-${name}" {
-        serviceConfig = lib.mkForce {
-          # PHP-FPM deve partire come root per creare il socket
-          # poi droppa i privilegi internamente
-          User = lib.mkForce "root";
-          Group = lib.mkForce "root";
-          
-          # Aggiungi restart policy
-          Restart = lib.mkForce "on-failure";
-          RestartSec = lib.mkForce "5s";
-          
-          # Path permissions
-          RuntimeDirectory = lib.mkForce "phpfpm";
-          RuntimeDirectoryMode = lib.mkForce "0755";
-        };
-      }
-    ) activeSites;
-
-    # Monitoring e Health Check (Semplificati)
-    # systemd.services = {
-      
-    #   phpfpm-health = {
-    #     description = "PHP-FPM Health Check";
-    #     after = [ "phpfpm.target" ];
-    #     serviceConfig = {
-    #       Type = "oneshot";
-    #       ExecStart = pkgs.writeScript "phpfpm-health" ''
-    #         #!${pkgs.bash}/bin/bash
-    #         echo "PHP-FPM Health Check: OK"
-    #       '';
-    #     };
-    #   };
-
-
+    systemd.services.phpfpm-health = {
+      description = "PHP-FPM Health Check";
+      after = [ "phpfpm.target" ];
+      serviceConfig = {
+        Type = "oneshot";
+        ExecStart = pkgs.writeScript "phpfpm-health" ''
+          #!${pkgs.bash}/bin/bash
+          echo "PHP-FPM Health Check: OK"
+        '';
+      };
+    };
     
-    # Timer e Activation Script (Invariati)
-    # systemd.timers.phpfpm-health = {
-    #   description = "PHP-FPM Health Check Timer";
-    #   wantedBy = [ "timers.target" ];
-    #   timerConfig = { OnBootSec = "2min"; OnUnitActiveSec = "5min"; Persistent = true; };
-    # };
+    systemd.timers.phpfpm-health = {
+      description = "PHP-FPM Health Check Timer";
+      wantedBy = [ "timers.target" ];
+      timerConfig = { OnBootSec = "2min"; OnUnitActiveSec = "5min"; Persistent = true; };
+    };
 
     system.activationScripts.wpbox-phpfpm-info = lib.mkAfter ''
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo "   WPBox PHP-FPM Configuration"
+      echo "   WPBox PHP-FPM Build-Time Configuration"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-      echo "   System RAM:      ${toString poolSizes.systemRamMb}MB"
-      echo "   Total Workers:   ${toString (poolSizes.maxChildren * safeSiteCount)}"
+      echo "   Configured RAM:     ${toString poolSizes.systemRamMb}MB"
+      echo "   Workers per site:   ${toString poolSizes.maxChildren}"
+      echo "   Total workers:      ${toString (poolSizes.maxChildren * safeSiteCount)}"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     '';
   };

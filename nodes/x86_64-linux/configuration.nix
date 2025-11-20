@@ -133,8 +133,8 @@ with lib;
     
     # Override hardware detection for consistent tuning
     hardware = {
-      runtimeMemoryMb = 4096;  # Force 4GB for consistent tuning
-      runtimeCores = 2;        # Force 2 cores
+      ramMb = 4096;  # 4GB RAM
+      cores = 2;     # 2 CPU cores
     };
     
     wordpress = {

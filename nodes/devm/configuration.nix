@@ -91,9 +91,9 @@ services.wpbox = {
   enable = true;
 
   hardware = {
-    runtimeMemoryMb = 4096;  # Force 4GB for consistent tuning
-    runtimeCores = 2;        # Force 2 cores
-    };
+    ramMb = 8128;  # 4GB RAM
+    cores = 4;     # 2 CPU cores
+  };
   
   wordpress = {
     enable = true;

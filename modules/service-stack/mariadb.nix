@@ -6,30 +6,13 @@ let
   cfg = config.services.wpbox.mariadb;
   wpCfg = config.services.wpbox.wordpress;
   hwCfg = config.services.wpbox.hardware;
-
-  getDetectedRamMb = 
-    let
-      ramFile = "/run/wpbox/detected-ram-mb";
-      fallbackRam = hwCfg.fallback.ramMb;
-    in
-    if hwCfg.runtimeMemoryMb != null 
-    then hwCfg.runtimeMemoryMb
-    else fallbackRam;
-
-  getDetectedCores =
-    let
-      coresFile = "/run/wpbox/detected-cores";
-      fallbackCores = hwCfg.fallback.cores;
-    in
-    if hwCfg.runtimeCores != null
-    then hwCfg.runtimeCores
-    else fallbackCores;
 in
 {
   config = mkIf (config.services.wpbox.enable && cfg.enable) (
     let
-      systemRamMb = getDetectedRamMb;
-      cpus = getDetectedCores;
+      # Direct access to hardware config
+      systemRamMb = hwCfg.ramMb;
+      cpus = hwCfg.cores;
       
       wpEnabled = config.services.wpbox.enable;
       
@@ -46,19 +29,18 @@ in
       reservedRamMb = wpTuning.osRamHeadroom or 2048;
       avgProcessMb = wpTuning.avgProcessSize or 70;
 
-      # PHP prende la RAM di sistema MENO la riserva.
+      # PHP allocation
       availablePhpRamMb = systemRamMb - reservedRamMb;
       totalMaxChildren = max 2 (availablePhpRamMb / avgProcessMb);
       safeSiteCount = if numberOfSites > 0 then numberOfSites else 1;
       calculatedChildrenPerSite = max 2 (builtins.floor (totalMaxChildren / safeSiteCount));
       phpFpmRamMb = calculatedChildrenPerSite * avgProcessMb * safeSiteCount;
 
-      # FIX LOGICA: MariaDB vive DENTRO la riserva (reservedRamMb), non fuori.
-      # Stimiamo 1GB per Kernel/OS/Nginx puro. Il resto della riserva è per i servizi DB/Cache.
+      # MariaDB lives inside the reserve
       osOverheadMb = 1024;
       availableInReserveMb = lib.max 512 (reservedRamMb - osOverheadMb);
       
-      # Assegniamo il 60% dello spazio libero nella riserva a MariaDB
+      # 60% of reserve space to MariaDB
       dbBudgetMb = builtins.floor (availableInReserveMb * 0.60);
 
       innodbBufferPoolSizeMb = lib.min 16384 (builtins.floor(dbBudgetMb * 0.70));
@@ -106,10 +88,9 @@ in
       };
     in
     {
-      # Warnings: Ora controlliamo solo se il budget è sensato, non se sfora il totale (perché è incluso nella riserva)
       warnings = 
-      (optional (dbBudgetMb < 256)
-        "WPBox MariaDB: Database budget is low (${toString dbBudgetMb}MB). Ensure osRamHeadroom is sufficient.");
+        (optional (dbBudgetMb < 256)
+          "WPBox MariaDB: Database budget is low (${toString dbBudgetMb}MB). Consider increasing osRamHeadroom.");
 
       services.mysql = {
         enable = true;
@@ -127,21 +108,15 @@ in
         ensureUsers = [];
       };
 
+      # Simplified info script - uses only config values
       system.activationScripts.wpbox-mariadb-info = lib.mkIf cfg.autoTune.enable (lib.mkAfter ''
-        if [ -f /run/wpbox/detected-ram-mb ]; then
-          ACTUAL_RAM=$(cat /run/wpbox/detected-ram-mb)
-          ACTUAL_CORES=$(cat /run/wpbox/detected-cores)
-        else
-          ACTUAL_RAM=${toString systemRamMb}
-          ACTUAL_CORES=${toString cpus}
-        fi
-        
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "   WPBox MariaDB Auto-Tuning"
+        echo "   WPBox MariaDB Build-Time Tuning"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        echo "   System RAM:         ''${ACTUAL_RAM}MB"
+        echo "   Configured RAM:     ${toString systemRamMb}MB"
+        echo "   Configured Cores:   ${toString cpus}"
         echo "   Reserved (Stack):   ${toString reservedRamMb}MB"
-        echo "   DB Budget (Res.):   ${toString dbBudgetMb}MB"
+        echo "   DB Budget:          ${toString dbBudgetMb}MB"
         echo "   InnoDB Buffer Pool: ${toString innodbBufferPoolSizeMb}MB"
         echo "   Max Connections:    ${toString maxConnections}"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -149,7 +124,6 @@ in
 
       systemd.tmpfiles.rules = [
         "d '${cfg.dataDir}' 0750 mysql mysql - -"
-        "d /run/wpbox 0755 root root - -"
       ];
     }
   );
